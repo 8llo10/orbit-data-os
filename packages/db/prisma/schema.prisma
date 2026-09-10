@@ -39,14 +39,16 @@ enum AutomationStatus {
 }
 
 model User {
-  id           String            @id @default(cuid())
-  email        String            @unique
-  passwordHash String
-  name         String?
-  createdAt    DateTime          @default(now())
-  memberships  WorkspaceMember[]
-  sessions     Session[]
-  auditLogs    AuditLog[]
+  id                     String                  @id @default(cuid())
+  email                  String                  @unique
+  passwordHash           String
+  name                   String?
+  createdAt              DateTime                @default(now())
+  memberships            WorkspaceMember[]
+  sessions               Session[]
+  auditLogs              AuditLog[]
+  assistantConversations AssistantConversation[]
+  assistantFeedback      AssistantFeedback[]
 }
 
 model Session {
@@ -61,19 +63,21 @@ model Session {
 }
 
 model Workspace {
-  id          String           @id @default(cuid())
-  name        String
-  slug        String           @unique
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  members     WorkspaceMember[]
-  collections Collection[]
-  dashboards  Dashboard[]
-  imports     ImportJob[]
-  automations AutomationRule[]
-  apiKeys     ApiKey[]
-  webhooks    Webhook[]
-  auditLogs   AuditLog[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  slug                   String                  @unique
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  members                WorkspaceMember[]
+  collections            Collection[]
+  dashboards             Dashboard[]
+  imports                ImportJob[]
+  automations            AutomationRule[]
+  apiKeys                ApiKey[]
+  webhooks               Webhook[]
+  auditLogs              AuditLog[]
+  assistantConversations AssistantConversation[]
+  assistantFeedback      AssistantFeedback[]
 }
 
 model WorkspaceMember {
@@ -227,5 +231,48 @@ model AuditLog {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([workspaceId, createdAt])
+}
+
+model AssistantConversation {
+  id          String             @id @default(cuid())
+  workspaceId String
+  userId      String
+  title       String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    AssistantMessage[]
+
+  @@index([workspaceId, userId, updatedAt])
+}
+
+model AssistantMessage {
+  id             String                @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  metadata       Json                  @default("{}")
+  createdAt      DateTime              @default(now())
+  conversation   AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  feedback       AssistantFeedback[]
+
+  @@index([conversationId, createdAt])
+}
+
+model AssistantFeedback {
+  id          String           @id @default(cuid())
+  workspaceId String
+  userId      String
+  messageId   String
+  rating      Int
+  reason      String?
+  createdAt   DateTime         @default(now())
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message     AssistantMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
   @@index([workspaceId, createdAt])
 }
