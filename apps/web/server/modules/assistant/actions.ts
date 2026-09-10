@@ -5,12 +5,23 @@ const wantsCreate=/(سو|سوي|أنشئ|انشئ|اعمل|ابني|جهز|creat
 const wantsDashboard=/(dashboard|داشبورد|لوحة)/i;
 const wantsAutomation=/(automation|أتمت|اتمت|تنبيه|نبه|alert|remind|webhook|trigger)/i;
 const wantsView=/(view|عرض محفوظ|احفظ.*نتيج|save.*view)/i;
+const wantsCsv=/(csv|سي ?اس ?في|اكسل|excel)/i;
+const wantsJson=/(json|جيسون)/i;
+const wantsExport=/(صدر|صدّر|export|download|نزل|نزّل)/i;
 
 export const navigateAction=(label:string,href:string):AssistantAction=>({id:randomUUID(),type:'navigate',label,href,requiresConfirmation:false});
 
 function dashboardAction(message:string,collectionId?:string):AssistantAction{return{id:randomUUID(),type:'create_dashboard',label:'إنشاء Dashboard من النتيجة',requiresConfirmation:true,payload:{name:'ORBIT Generated Dashboard',collectionId:collectionId||null,request:message}}}
 function automationAction(message:string,collectionId?:string):AssistantAction{return{id:randomUUID(),type:'create_automation',label:'إنشاء الأتمتة المقترحة',requiresConfirmation:true,payload:{name:`ORBIT: ${message.slice(0,70)}`,collectionId:collectionId||null,request:message}}}
 function viewAction(message:string,collectionId:string):AssistantAction{return{id:randomUUID(),type:'create_view',label:'حفظ النتيجة كـ View',requiresConfirmation:true,payload:{name:'ORBIT Generated View',collectionId,request:message}}}
+
+export function exportActions(message:string,collectionId?:string):AssistantAction[]{
+ if(!collectionId||!wantsExport.test(message))return [];
+ const actions:AssistantAction[]=[];
+ if(wantsJson.test(message))actions.push({id:randomUUID(),type:'export_json',label:'تصدير JSON',href:`/api/collections/${collectionId}/export?format=json`,requiresConfirmation:false});
+ if(wantsCsv.test(message)||!actions.length)actions.push({id:randomUUID(),type:'export_csv',label:'تصدير CSV',href:`/api/collections/${collectionId}/export?format=csv`,requiresConfirmation:false});
+ return actions;
+}
 
 export function requestedMutationActions(input:{intent:AssistantIntent;message:string;collectionId?:string}){
  const {intent,message,collectionId}=input;const explicit=wantsCreate.test(message);const steps:AssistantAction[]=[];
