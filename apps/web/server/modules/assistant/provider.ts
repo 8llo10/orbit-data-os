@@ -7,11 +7,12 @@ type ProviderMessage={role:'system'|'user'|'assistant';content:string};
 export async function askProvider(input:{message:string;intent:AssistantIntent;snapshot:WorkspaceSnapshot;groundTruth:string;history:ChatTurn[]}){
   if(!providerConfigured())return null;
   const system=buildSystemPrompt({intent:input.intent,snapshot:input.snapshot,groundedResult:input.groundTruth,history:input.history});
-  return callProvider([
+  const messages:ProviderMessage[]=[
     {role:'system',content:system},
     ...input.history.slice(-assistantConfig.maxHistoryTurns),
     {role:'user',content:input.message}
-  ],assistantConfig.providerMaxTokens);
+  ];
+  return callProvider(messages,assistantConfig.providerMaxTokens);
 }
 
 export async function planWithProvider(input:{message:string;snapshot:WorkspaceSnapshot;history:ChatTurn[]}):Promise<ModelAssistantPlan|null>{
