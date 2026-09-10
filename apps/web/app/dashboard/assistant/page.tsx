@@ -10,7 +10,7 @@ export default async function AssistantPage(){
  const [collections,records,relations,automations]=await Promise.all([
   db.collection.count({where:{workspaceId:ws.id}}),
   db.dataRecord.count({where:{collection:{workspaceId:ws.id}}}),
-  db.collectionRelation.count({where:{workspaceId:ws.id}}),
+  db.collectionRelation.count({where:{fromCollection:{workspaceId:ws.id}}}),
   db.automationRule.count({where:{workspaceId:ws.id,status:'ACTIVE'}})
  ]);
  return <AppShell><div className="assistantPage">
