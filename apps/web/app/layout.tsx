@@ -1,5 +1,6 @@
 import './globals.css';
 import './design-system.css';
+import './product-pages.css';
 
 export const metadata={
   title:'ORBIT — Personal Data Operating System',
