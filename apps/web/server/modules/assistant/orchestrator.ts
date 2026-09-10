@@ -21,7 +21,7 @@ export async function orchestrateAssistant(input:AssistantRunInput):Promise<Assi
  const actions:AssistantAction[]=[];if(collectionId)actions.push(navigateAction('فتح المصدر',`/dashboard/collections/${collectionId}`));if(intent==='WORKSPACE_SUMMARY')actions.push(navigateAction('فتح البيانات','/dashboard/collections'));
  if(intent==='RELATIONSHIPS'||explicitRelation){actions.push(navigateAction('فتح مخطط العلاقات','/dashboard/graph'));const proposal=proposeRelationshipAction(s,input.message);if(proposal){if(wantsResult.test(input.message))actions.push({id:randomUUID(),type:'execute_plan',label:'إنشاء العلاقة وإكمال الطلب',requiresConfirmation:true,payload:{steps:[proposal],request:input.message,resume:true}});else actions.push(proposal);}}
  if(collectionId)actions.push(...exportActions(input.message,collectionId));
- if(plan.canOfferMutation&&sources.length)actions.push(...mutationActions({intent,message:input.message,collectionId}));
+ if(sources.length)actions.push(...mutationActions({intent,message:input.message,collectionId}));
  const groundTruth=buildGroundTruth(answer,sources);const ai=await askProvider({message:input.message,intent,snapshot:s,groundTruth,history});const aiAccepted=Boolean(ai&&providerAnswerIsGrounded(ai,groundTruth));if(aiAccepted&&ai)answer=ai;
  return {answer,intent,confidence:sources.length?0.97:intent==='WORKSPACE_SUMMARY'||intent==='RELATIONSHIPS'?0.95:0.78,evidence,sources,actions,followUps:followUpsFor(intent,Boolean(sources.length)),mode:aiAccepted?'ai-orchestrated':'deterministic',requestId};
 }
