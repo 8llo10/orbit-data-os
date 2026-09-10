@@ -2,6 +2,7 @@ import {AppError} from '@/server/core/errors';
 import {executeAutomationAction} from './automation';
 import {executeDashboardAction} from './dashboard';
 import {executeFormulaAction} from './formula';
+import {executeCreateRecordAction} from './record';
 import {executeRelationAction} from './relation';
 import {executePlanAction} from './plan';
 import type {ActionExecutionContext,ActionExecutionResult} from './types';
@@ -15,6 +16,7 @@ export async function dispatchAssistantAction(context:ActionExecutionContext):Pr
   case 'create_view':return executeViewAction(context);
   case 'create_relation':return executeRelationAction(context);
   case 'create_formula':return executeFormulaAction(context);
+  case 'create_record':return executeCreateRecordAction(context);
   case 'execute_plan':return executePlanAction(context);
   default:throw new AppError('UNSUPPORTED_ACTION',400,'الإجراء المطلوب غير مدعوم للتنفيذ.');
  }
