@@ -1,18 +1,16 @@
 import {randomUUID} from 'crypto';
-import {detectIntent} from './intent';
 import {analyzeQuestion} from './analytics';
 import {largestCollections,relationEvidence,workspaceEvidence} from './query-engine';
 import {askProvider} from './provider';
 import {buildGroundTruth,providerAnswerIsGrounded} from './grounding';
-import {contextualizeMessage,normalizeHistory} from './history';
 import {mutationActions,navigateAction} from './actions';
+import {planAssistantRequest} from './planner';
 import type {AssistantResult,AssistantRunInput,Evidence,SourceRef} from './types';
 
 export async function orchestrateAssistant(input:AssistantRunInput):Promise<AssistantResult>{
   const requestId=randomUUID();
-  const history=normalizeHistory(input.history);
-  const effectiveMessage=contextualizeMessage(input.message,history);
-  const intent=detectIntent(effectiveMessage);
+  const plan=planAssistantRequest(input.message,input.history);
+  const {intent,effectiveMessage,history}=plan;
   const s=input.snapshot;
 
   if(!s.collectionCount){
@@ -36,14 +34,17 @@ export async function orchestrateAssistant(input:AssistantRunInput):Promise<Assi
     answer=`عندك ${s.relationCount} علاقات معرفة رسميًا. العلاقات المحتملة اللي تظهر هنا مجرد اقتراحات مبنية على تشابه المفاتيح، وما أعتبرها صحيحة إلا بعد إثباتها أو تأكيدك.`;
   }else{
     const analysis=await analyzeQuestion(effectiveMessage,s);
-    answer=analysis.answer;evidence=analysis.evidence;sources=analysis.sources;collectionId=analysis.collectionId;
+    answer=analysis.answer;
+    evidence=analysis.evidence;
+    sources=analysis.sources;
+    collectionId=analysis.collectionId;
   }
 
   const actions=[];
   if(collectionId)actions.push(navigateAction('فتح المصدر',`/dashboard/collections/${collectionId}`));
   if(intent==='WORKSPACE_SUMMARY')actions.push(navigateAction('فتح البيانات','/dashboard/collections'));
   if(intent==='RELATIONSHIPS')actions.push(navigateAction('فتح مخطط العلاقات','/dashboard/graph'));
-  if(intent!=='RELATIONSHIPS'&&intent!=='WORKSPACE_SUMMARY'&&sources.length)actions.push(...mutationActions({intent,message:input.message,collectionId}));
+  if(plan.canOfferMutation&&sources.length)actions.push(...mutationActions({intent,message:input.message,collectionId}));
 
   const groundTruth=buildGroundTruth(answer,sources);
   const ai=await askProvider({message:input.message,intent,snapshot:s,groundTruth,history});
