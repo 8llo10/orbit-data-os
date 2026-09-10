@@ -1,14 +1,33 @@
-import {randomUUID} from 'crypto';import {detectIntent} from './intent';import {askProvider} from './provider';import {largestCollections,qualityEvidence,relationEvidence,workspaceEvidence} from './query-engine';import type {AssistantAction,AssistantResult,WorkspaceSnapshot} from './types';
+import {randomUUID} from 'crypto';
+import {detectIntent} from './intent';
+import {askProvider} from './provider';
+import {analyzeQuestion} from './analytics';
+import {largestCollections,relationEvidence,workspaceEvidence} from './query-engine';
+import type {AssistantAction,AssistantResult,SourceRef,WorkspaceSnapshot} from './types';
+
 const nav=(label:string,href:string):AssistantAction=>({id:randomUUID(),type:'navigate',label,href,requiresConfirmation:false});
+const mut=(type:'create_dashboard'|'create_automation'|'create_view',label:string,payload:Record<string,unknown>):AssistantAction=>({id:randomUUID(),type,label,requiresConfirmation:true,payload});
+
 export async function runAssistant(message:string,s:WorkspaceSnapshot):Promise<AssistantResult>{
- const intent=detectIntent(message);let evidence=workspaceEvidence(s),answer='',actions:AssistantAction[]=[nav('فتح البيانات','/dashboard/collections')];
- if(!s.collectionCount){answer='مساحة العمل فاضية. ارفع ملف CSV أو Excel أو JSON، وبعدها أقدر أقرأ بنيته وأحلله وأقترح لك نظام تشغيل مناسب له.';actions=[nav('رفع بيانات','/dashboard/imports')];}
- else if(intent==='DATA_QUALITY'){evidence=qualityEvidence(s);const warnings=evidence.filter(e=>e.kind==='warning').length;answer=warnings?`فحصت عينات من مجموعاتك وطلعت ${warnings} مجموعات تستحق مراجعة جودة. النتائج المعروضة هنا مؤشرات من العينة وليست حكمًا على كامل الجدول.`:'العينات الحالية ما أظهرت مشكلة جودة واضحة، لكن الفحص الكامل يحتاج تشغيل profiling على كل السجلات.';actions=[nav('فتح البيانات','/dashboard/collections'),nav('مخطط العلاقات','/dashboard/graph')];}
- else if(intent==='RELATIONSHIPS'){evidence=relationEvidence(s);answer=`عندك ${s.relationCount} علاقات معرفة حاليًا. كذلك بحثت عن مفاتيح متشابهة بين الجداول وعرضت لك العلاقات المحتملة كاقتراحات، مو كحقائق مؤكدة.`;actions=[nav('إدارة العلاقات','/dashboard/graph')];}
- else if(intent==='RANKING'){evidence=largestCollections(s);answer=`رتبت مجموعات البيانات حسب عدد السجلات. أكبرها «${[...s.collections].sort((a,b)=>b.recordCount-a.recordCount)[0]?.name}». إذا كان قصدك ترتيبًا حسب تكلفة أو أعطال أو SLA، لازم نحدد الحقل والمجموعة ثم ننفذ aggregation عليها.`;}
- else if(intent==='AUTOMATION'){answer='أقدر أحول نتيجة تحليل إلى Automation، لكن ما راح أنفذ تغيير من المحادثة بدون تأكيد. اختر الشرط والحدث المطلوبين وبعدها أعرض لك خطة التنفيذ قبل الحفظ.';actions=[{id:randomUUID(),type:'create_automation',label:'إنشاء أتمتة من هذه المحادثة',href:'/dashboard/automations',requiresConfirmation:true}];}
- else if(intent==='DASHBOARD'){answer='أقدر أبني لوحة من مؤشرات بياناتك، لكن لازم تكون كل بطاقة مرتبطة باستعلام قابل للتتبع. نبدأ بأحجام الجداول وجودة البيانات، وبعدها نضيف KPIs خاصة بالمجال الموجود في ملفاتك.';actions=[{id:randomUUID(),type:'create_dashboard',label:'إنشاء لوحة مقترحة',href:'/dashboard/builder',requiresConfirmation:true}];}
- else if(intent==='WORKSPACE_SUMMARY'||intent==='ANALYSIS'){const top=largestCollections(s)[0];answer=`مساحة «${s.name}» فيها ${s.collectionCount} مجموعات و${s.recordCount.toLocaleString('ar-SA')} سجل. ${top?`أكبر مجموعة ${top.label} (${top.value}).`:''} عندك ${s.relationCount} علاقات و${s.automationCount} أتمتة فعالة. أقدر الآن أنزل لمستوى مجموعة وحقل بدل الملخص العام.`;}
- else answer='أفهم سؤالك كسؤال عن مساحة البيانات. أقدر ألخص، أفحص الجودة، أبحث عن علاقات، أرتب النتائج، أو أحول النتيجة إلى لوحة/أتمتة. إذا تبغى رقمًا محددًا اذكر المجموعة أو الحقل وسأربط الإجابة بالدليل.';
- const ai=await askProvider(message,intent,s,answer).catch(()=>null);return {answer:ai||answer,intent,confidence:ai?.length?0.88:0.72,evidence,actions,followUps:['حلل جودة البيانات','وش العلاقات المحتملة بين الجداول؟','اقترح لي لوحة تشغيلية'],mode:ai?'ai-orchestrated':'deterministic',requestId:randomUUID()};
+ const requestId=randomUUID();const intent=detectIntent(message);let answer='';let evidence=workspaceEvidence(s);let sources:SourceRef[]=[];let actions:AssistantAction[]=[];
+ if(!s.collectionCount){answer='ما عندي ملفات أقدر أعتمد عليها للحين. ارفع CSV أو Excel أو JSON وبعدها أي معلومة أذكرها لك بربطها بمصدر واضح.';actions=[nav('رفع أول ملف','/dashboard/imports')];return result(answer,intent,evidence,sources,actions,false,requestId)}
+
+ if(intent==='WORKSPACE_SUMMARY'){
+  const top=largestCollections(s)[0];answer=`مساحة «${s.name}» فيها ${s.collectionCount} مجموعات بإجمالي ${s.recordCount.toLocaleString('ar-SA')} سجل، و${s.relationCount} علاقات و${s.automationCount} أتمتة فعالة.${top?` أكبر مجموعة هي «${top.label}» وفيها ${top.value}.`:''}`;actions=[nav('فتح البيانات','/dashboard/collections'),mut('create_dashboard','بناء Dashboard من هذا الملخص',{name:'ORBIT Generated Overview',kind:'overview'})];
+ }else if(intent==='RELATIONSHIPS'){
+  evidence=relationEvidence(s);answer=`عندك ${s.relationCount} علاقات معرفة رسميًا. وعرضت لك فقط مفاتيح متشابهة كعلاقات محتملة؛ ما أعتبرها صحيحة إلا بعد إثباتها أو تأكيدك.`;actions=[nav('فتح مخطط العلاقات','/dashboard/graph')];
+ }else{
+  const analysis=await analyzeQuestion(message,s);answer=analysis.answer;evidence=analysis.evidence;sources=analysis.sources;
+  if(analysis.collectionId)actions.push(nav('فتح المصدر','/dashboard/collections'));
+  if(intent==='AUTOMATION')actions.push(mut('create_automation','إنشاء الأتمتة المقترحة',{name:`ORBIT: ${message.slice(0,70)}`,collectionId:analysis.collectionId||null,request:message}));
+  if(intent==='DASHBOARD'||intent==='ANALYSIS'||intent==='RANKING')actions.push(mut('create_dashboard','إنشاء Dashboard من النتيجة',{name:'ORBIT Generated Dashboard',collectionId:analysis.collectionId||null,request:message}));
+  if(!analysis.hasSource)actions=[];
+ }
+
+ const groundedText=`${answer}\n\nالمصادر المتاحة: ${sources.length?sources.map(x=>`${x.collectionName} [${x.fields.join(', ')}] - ${x.examinedRows}/${x.totalRows} rows`).join(' | '):'لا يوجد مصدر ملف لهذا الاستنتاج.'}`;
+ const ai=await askProvider(message,intent,s,groundedText).catch(()=>null);
+ if(ai&&sources.length)answer=ai;
+ return {answer,intent,confidence:sources.length?0.96:0.8,evidence,sources,actions,followUps:sources.length?['ورّني مشاكل الجودة في نفس المصدر','وش أعلى القيم أو الحالات فيه؟','حوّل النتيجة إلى Dashboard']:['وش الملفات الموجودة عندي؟','لخص مساحة العمل'],mode:ai&&sources.length?'ai-orchestrated':'deterministic',requestId};
 }
+
+function result(answer:string,intent:AssistantResult['intent'],evidence:AssistantResult['evidence'],sources:SourceRef[],actions:AssistantAction[],ai:boolean,requestId:string):AssistantResult{return {answer,intent,confidence:0.95,evidence,sources,actions,followUps:[],mode:ai?'ai-orchestrated':'deterministic',requestId}}
