@@ -1,0 +1,3 @@
+import type {AssistantIntent} from './types';
+const tests:[AssistantIntent,RegExp][]=[['DATA_QUALITY',/(جود|ناقص|مكرر|duplicate|missing|quality|شاذ|غلط|مشك)/i],['RELATIONSHIPS',/(اربط|علاق|relation|join|connect)/i],['AUTOMATION',/(أتمت|اتمت|automation|نبه|تنبيه|تلقائي)/i],['DASHBOARD',/(dashboard|داشبورد|لوحة|chart|مخطط)/i],['RANKING',/(أكثر|اكثر|أعلى|اعلى|أكبر|اكبر|top|highest|most)/i],['SEARCH',/(ابحث|دور|find|search)/i],['WORKSPACE_SUMMARY',/(لخص|ملخص|summary|overview|وش عندي)/i],['ANALYSIS',/(حلل|تحليل|قارن|compare|analy)/i]];
+export function detectIntent(text:string):AssistantIntent{for(const [intent,re] of tests)if(re.test(text))return intent;return 'GENERAL'}
