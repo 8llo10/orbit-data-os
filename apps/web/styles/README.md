@@ -1,19 +1,22 @@
 # ORBIT Frontend Style Architecture
 
-This directory is the single styling source of truth for the web application.
+`apps/web/styles` is the single styling source of truth for ORBIT Web.
 
 ## Structure
 
 ```text
 styles/
-├── tokens.css                  # colors, spacing, radii, shadows, theme variables
-├── base.css                    # reset, typography, global motion, scroll behavior
-├── primitives.css              # reusable surfaces, buttons, forms, tables, page shells
-├── shell.css                   # desktop sidebar, mobile header/drawer, toolbar, palette
+├── tokens.css                    # palette, spacing, radii, shadows, themes
+├── base.css                      # reset, typography, global motion, accessibility
+├── primitives.css                # shared surfaces, buttons, forms and layout helpers
+├── shell.css                     # desktop/mobile application chrome
 ├── components/
 │   ├── assistant-spotlight.css
 │   ├── copilot.css
-│   └── dashboard-builder.css
+│   ├── dashboard-builder.css
+│   ├── data-table.css
+│   ├── collection-view.css
+│   └── insight-bars.css
 └── pages/
     ├── landing.css
     ├── auth.css
@@ -32,27 +35,27 @@ styles/
 
 ## Ownership rules
 
-1. **Tokens only in `tokens.css`.** Pages and components must use variables instead of introducing new theme colors.
-2. **Global behavior only in `base.css`.** Reset, typography, shared animation keyframes and accessibility live there.
-3. **Reusable UI only in `primitives.css`.** Buttons, inputs, cards, surfaces, tables and shared grid helpers belong there.
-4. **Application chrome only in `shell.css`.** Navigation, toolbar, drawers and command palette must not leak into page files.
-5. **One component = one stylesheet** under `components/` when the component has a substantial visual system.
-6. **One product area = one page stylesheet** under `pages/`. Responsive rules stay beside the styles they own.
-7. **No `<style>` / `<style jsx>` blocks in product components or dashboard pages.** Dynamic data-driven dimensions may use React inline styles only when the value is runtime data (for example chart/bar width).
-8. **Desktop and mobile are designed together.** Every owner stylesheet contains its own responsive rules; do not create a second disconnected mobile stylesheet.
-9. **No green in the ORBIT product palette.** The visual identity stays plum / mauve / lavender with neutral surfaces.
-10. **Prefer refinement over new CSS.** Extend an existing token or primitive before creating another one-off visual rule.
+1. **`tokens.css` owns design tokens only.** Product code consumes variables instead of inventing one-off theme colors.
+2. **`base.css` owns global behavior only.** Reset, typography, shared motion keyframes, scrollbar and reduced-motion accessibility live there.
+3. **`primitives.css` owns reusable UI contracts.** Page shells, surfaces, buttons, form controls, generic grids and shared setting rows belong there.
+4. **`shell.css` owns application chrome only.** Desktop sidebar, mobile header/drawer, toolbar, notifications and command palette do not belong in page files.
+5. **Substantial reusable components own a stylesheet** under `components/`. DataTable, CollectionView, InsightBars, Copilot, DashboardBuilder and AssistantSpotlight do not leak styling into a page stylesheet.
+6. **Each product area owns a page stylesheet** under `pages/`. A page file contains only styles unique to that product area.
+7. **No `<style>` or `<style jsx>` blocks in product components/dashboard pages.** Runtime data-driven dimensions such as chart height or progress width are the only acceptable inline styles.
+8. **Responsive rules live with their owner.** Desktop, tablet and mobile behavior for a component/page are defined in the same stylesheet; there is no disconnected mobile CSS dump.
+9. **No green in the ORBIT identity.** The product palette stays plum / mauve / lavender with neutral surfaces.
+10. **Extend before inventing.** Use an existing token/primitive before introducing another visual contract.
 
 ## Breakpoints
 
 - Desktop: `> 980px`
 - Tablet: `761px – 980px`
 - Mobile: `<= 760px`
-- Small mobile refinements: `<= 640px` / `<= 430px`
+- Small mobile refinements: `<= 640px` and `<= 430px`
 
 ## Motion
 
-Motion is intentionally restrained. `base.css` owns shared entrance/popup/spin animations and every animation respects `prefers-reduced-motion`.
+Motion is restrained and functional. Shared entrance, pop, spin and fade keyframes live in `base.css`. Every animation respects `prefers-reduced-motion`.
 
 ## Import order
 
@@ -62,7 +65,11 @@ Motion is intentionally restrained. `base.css` owns shared entrance/popup/spin a
 2. base
 3. primitives
 4. shell
-5. component styles
-6. page styles
+5. component-owned styles
+6. page-owned styles
 
-Later files may specialize earlier primitives, but should not redefine foundation tokens.
+Later layers may specialize an earlier contract, but page files should never redefine foundation tokens.
+
+## Maintenance rule
+
+Styling work is considered infrastructure, not feature logic. Future backend/AI work should not add CSS to route handlers or service modules. Any future visual change must be made in the owning stylesheet above so ORBIT keeps one coherent visual system on laptop and mobile.
