@@ -7,6 +7,8 @@ const wantsAutomation=/(automation|أتمت|اتمت|تنبيه|نبه|alert|rem
 const wantsView=/(view|عرض محفوظ|احفظ.*نتيج|save.*view)/i;
 const wantsFormula=/(عمود|حقل|column|field).*(احسب|حساب|معادلة|formula|=|من)/i;
 const wantsRecord=/(أضف|اضف|ضيف|أنشئ|انشئ|create|add).*(سجل|record)/i;
+const wantsUpdate=/(عدل|عدّل|حدث|حدّث|غير|غيّر|update|edit|change).*(سجل|record)/i;
+const wantsDelete=/(احذف|حذف|امسح|delete|remove).*(سجل|record)/i;
 const wantsCsv=/(csv|سي ?اس ?في|اكسل|excel)/i;
 const wantsJson=/(json|جيسون)/i;
 const wantsExport=/(صدر|صدّر|export|download|نزل|نزّل)/i;
@@ -32,12 +34,29 @@ function formulaAction(message:string,collectionId:string):AssistantAction|null{
 function recordAction(message:string,collectionId:string):AssistantAction|null{
  if(!wantsRecord.test(message))return null;
  const body=message.includes(':')?message.slice(message.indexOf(':')+1):message.replace(/^.*?(?:سجل|record)\s*/i,'');
- const values:Record<string,unknown>={};
- const json=body.trim();
- if(json.startsWith('{')&&json.endsWith('}')){try{const parsed=JSON.parse(json);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))Object.assign(values,parsed)}catch{}}
- if(!Object.keys(values).length){for(const part of body.split(/[,،;]\s*/)){const m=part.match(/^\s*([A-Za-z0-9_\-\u0600-\u06ff]+)\s*(?:=|:|يساوي)\s*(.+?)\s*$/);if(!m)continue;values[m[1]]=coerce(m[2]);}}
+ const values=parseValues(body);
  if(!Object.keys(values).length)return null;
  return {id:randomUUID(),type:'create_record',label:`إضافة سجل جديد (${Object.keys(values).length} حقول)`,requiresConfirmation:true,payload:{collectionId,values,request:message}};
+}
+
+function recordMutationAction(message:string,collectionId:string):AssistantAction|null{
+ const type=wantsDelete.test(message)?'delete_record':wantsUpdate.test(message)?'update_record':null;if(!type)return null;
+ const selectorMatch=message.match(/(?:حيث|where|اللي|الذي)\s+([A-Za-z0-9_\-\u0600-\u06ff]+)\s*(?:=|:|يساوي)\s*([^,:،;]+)(?=\s*(?::|،|,|;|$))/i);
+ const idMatch=message.match(/(?:record\s*id|record_id|معرف\s*السجل|رقم\s*السجل)\s*(?:=|:|يساوي)?\s*([A-Za-z0-9_\-]+)/i);
+ const selector=selectorMatch?{field:selectorMatch[1],value:coerce(selectorMatch[2])}:undefined;
+ const recordId=idMatch?.[1];
+ if(!selector&&!recordId)return null;
+ if(type==='delete_record')return {id:randomUUID(),type,label:'حذف السجل المحدد',requiresConfirmation:true,payload:{collectionId,selector,recordId,request:message}};
+ const colon=message.lastIndexOf(':');const values=colon>=0?parseValues(message.slice(colon+1)):{};
+ if(!Object.keys(values).length)return null;
+ return {id:randomUUID(),type,label:`تعديل السجل المحدد (${Object.keys(values).length} حقول)`,requiresConfirmation:true,payload:{collectionId,selector,recordId,values,request:message}};
+}
+
+function parseValues(body:string){
+ const values:Record<string,unknown>={};const json=body.trim();
+ if(json.startsWith('{')&&json.endsWith('}')){try{const parsed=JSON.parse(json);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))Object.assign(values,parsed)}catch{}}
+ if(!Object.keys(values).length){for(const part of body.split(/[,،;]\s*/)){const m=part.match(/^\s*([A-Za-z0-9_\-\u0600-\u06ff]+)\s*(?:=|:|يساوي)\s*(.+?)\s*$/);if(!m)continue;values[m[1]]=coerce(m[2]);}}
+ return values;
 }
 
 function coerce(raw:string):unknown{const value=raw.trim().replace(/^['"«]|['"»]$/g,'');if(/^null$/i.test(value))return null;if(/^true$/i.test(value))return true;if(/^false$/i.test(value))return false;const n=Number(value.replace(/,/g,''));return Number.isFinite(n)&&value!==''?n:value;}
@@ -52,7 +71,7 @@ export function exportActions(message:string,collectionId?:string):AssistantActi
 
 export function requestedMutationActions(input:{intent:AssistantIntent;message:string;collectionId?:string}){
  const {intent,message,collectionId}=input;const explicit=wantsCreate.test(message);const steps:AssistantAction[]=[];
- if(collectionId){const record=recordAction(message,collectionId);if(record)steps.push(record);const formula=formulaAction(message,collectionId);if(formula)steps.push(formula);}
+ if(collectionId){const mutation=recordMutationAction(message,collectionId);if(mutation)steps.push(mutation);const record=recordAction(message,collectionId);if(record)steps.push(record);const formula=formulaAction(message,collectionId);if(formula)steps.push(formula);}
  if((explicit&&wantsDashboard.test(message))||intent==='DASHBOARD')steps.push(dashboardAction(message,collectionId));
  if((explicit&&wantsAutomation.test(message))||intent==='AUTOMATION')steps.push(automationAction(message,collectionId));
  if(collectionId&&explicit&&wantsView.test(message))steps.push(viewAction(message,collectionId));
