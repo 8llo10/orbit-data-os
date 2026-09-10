@@ -2,11 +2,12 @@ import {AppError} from '@/server/core/errors';
 import type {AssistantAction} from '../types';
 import {executeAutomationAction} from './automation';
 import {executeDashboardAction} from './dashboard';
+import {executeFormulaAction} from './formula';
 import {executeRelationAction} from './relation';
 import {executeViewAction} from './view';
 import type {ActionExecutionContext,ActionExecutionResult} from './types';
 
-const executable=new Set(['create_dashboard','create_automation','create_view','create_relation']);
+const executable=new Set(['create_dashboard','create_automation','create_view','create_relation','create_formula']);
 
 export async function executePlanAction(context:ActionExecutionContext):Promise<ActionExecutionResult>{
  const raw=context.action.payload?.steps;
@@ -24,6 +25,7 @@ export async function executePlanAction(context:ActionExecutionContext):Promise<
    if(child.type==='create_relation')result=await executeRelationAction({...context,action:child});
    else if(child.type==='create_view')result=await executeViewAction({...context,action:child});
    else if(child.type==='create_dashboard')result=await executeDashboardAction({...context,action:child});
+   else if(child.type==='create_formula')result=await executeFormulaAction({...context,action:child});
    else result=await executeAutomationAction({...context,action:child});
    results.push(result);
   }catch(error){
