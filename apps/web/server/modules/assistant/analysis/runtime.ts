@@ -7,10 +7,11 @@ import {analyzeQuality} from './quality';
 import {analyzeRanking} from './ranking';
 import {analyzeSearch} from './search';
 import {analyzeSla} from './sla';
+import {analyzeStats} from './stats';
 import {analyzeTrend} from './trend';
 import type {AnalysisContext,AnalysisStrategy,DataAnalysis,DynamicRecord} from './types';
 
-const strategies:AnalysisStrategy[]=[analyzeSla,analyzeQuality,analyzeAnomalies,analyzeTrend,analyzeSearch,analyzeRanking,analyzeFallback];
+const strategies:AnalysisStrategy[]=[analyzeSla,analyzeQuality,analyzeAnomalies,analyzeTrend,analyzeSearch,analyzeStats,analyzeRanking,analyzeFallback];
 
 export async function runDeterministicAnalysis(message:string,snapshot:WorkspaceSnapshot):Promise<DataAnalysis>{
  const collection=resolveCollection(message,snapshot);
