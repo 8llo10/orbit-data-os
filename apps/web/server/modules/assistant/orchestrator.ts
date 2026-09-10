@@ -1,5 +1,6 @@
 import {randomUUID} from 'crypto';
 import {analyzeQuestion} from './analytics';
+import {analyzeAcrossRelations} from './relational-analytics';
 import {largestCollections,relationEvidence,workspaceEvidence} from './query-engine';
 import {askProvider} from './provider';
 import {buildGroundTruth,providerAnswerIsGrounded} from './grounding';
@@ -33,7 +34,8 @@ export async function orchestrateAssistant(input:AssistantRunInput):Promise<Assi
     evidence=relationEvidence(s);
     answer=`عندك ${s.relationCount} علاقات معرفة رسميًا. العلاقات المحتملة اللي تظهر هنا مجرد اقتراحات مبنية على تشابه المفاتيح، وما أعتبرها صحيحة إلا بعد إثباتها أو تأكيدك.`;
   }else{
-    const analysis=await analyzeQuestion(effectiveMessage,s);
+    const relational=await analyzeAcrossRelations(effectiveMessage,s);
+    const analysis=relational||await analyzeQuestion(effectiveMessage,s);
     answer=analysis.answer;
     evidence=analysis.evidence;
     sources=analysis.sources;
