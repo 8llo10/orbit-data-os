@@ -3,11 +3,12 @@ import {activeMembership} from '@/lib/auth';
 import {AppError,errorResponse} from '@/server/core/errors';
 import {can} from '@/server/core/permissions';
 import {assistantConfig} from '@/server/modules/assistant/config';
+import {appendAssistantMessage,appendUserMessage,getOrCreateConversation,loadConversationHistory} from '@/server/modules/assistant/conversation-store';
 import {loadWorkspaceSnapshot} from '@/server/modules/assistant/repository';
 import {runAssistant} from '@/server/modules/assistant/service';
 import type {ChatTurn} from '@/server/modules/assistant/types';
 
-type Body={message?:unknown;history?:unknown};
+type Body={message?:unknown;history?:unknown;conversationId?:unknown};
 
 export async function POST(req:Request){
   try{
@@ -20,13 +21,22 @@ export async function POST(req:Request){
     if(!message)throw new AppError('INVALID_MESSAGE',400,'اكتب سؤالك أولًا.');
     if(message.length>assistantConfig.maxMessageChars)throw new AppError('MESSAGE_TOO_LONG',400,`الرسالة طويلة جدًا. الحد ${assistantConfig.maxMessageChars} حرف.`);
 
-    const history:ChatTurn[]=Array.isArray(body?.history)?body.history
+    const clientHistory:ChatTurn[]=Array.isArray(body?.history)?body.history
       .filter((x):x is {role:'user'|'assistant';content:string}=>Boolean(x&&typeof x==='object'&&(((x as {role?:unknown}).role==='user')||((x as {role?:unknown}).role==='assistant'))&&typeof (x as {content?:unknown}).content==='string'))
       .slice(-assistantConfig.maxHistoryTurns)
       .map(x=>({role:x.role,content:x.content.slice(0,1800)})):[];
 
+    const conversationId=await getOrCreateConversation({
+      conversationId:typeof body?.conversationId==='string'?body.conversationId:undefined,
+      workspaceId:membership.workspaceId,userId:membership.userId,firstMessage:message
+    });
+    const storedHistory=await loadConversationHistory(conversationId,membership.workspaceId,membership.userId,assistantConfig.maxHistoryTurns);
+    const history=storedHistory.length?storedHistory:clientHistory;
+    await appendUserMessage(conversationId,message);
+
     const snapshot=await loadWorkspaceSnapshot(membership.workspaceId,membership.role);
     const result=await runAssistant(message,snapshot,history);
-    return NextResponse.json(result);
+    const saved=await appendAssistantMessage(conversationId,result);
+    return NextResponse.json({...result,conversationId,messageId:saved.id});
   }catch(error){return errorResponse(error)}
 }
