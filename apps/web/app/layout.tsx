@@ -6,6 +6,9 @@ import '../styles/shell.css';
 import '../styles/components/assistant-spotlight.css';
 import '../styles/components/copilot.css';
 import '../styles/components/dashboard-builder.css';
+import '../styles/components/data-table.css';
+import '../styles/components/collection-view.css';
+import '../styles/components/insight-bars.css';
 
 import '../styles/pages/landing.css';
 import '../styles/pages/auth.css';
