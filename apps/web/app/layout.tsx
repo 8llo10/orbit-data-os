@@ -7,6 +7,7 @@ import '../styles/components/assistant-spotlight.css';
 import '../styles/components/copilot.css';
 import '../styles/components/dashboard-builder.css';
 
+import '../styles/pages/landing.css';
 import '../styles/pages/auth.css';
 import '../styles/pages/dashboard.css';
 import '../styles/pages/assistant.css';
