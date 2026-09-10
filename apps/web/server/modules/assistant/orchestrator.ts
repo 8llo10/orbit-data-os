@@ -10,6 +10,9 @@ import {proposeRelationshipAction} from './relationship-proposals';
 import {executeStructuredQuery,validateStructuredPlan} from './structured-query';
 import type {AssistantAction,AssistantResult,AssistantRunInput,Evidence,SourceRef} from './types';
 
+const inventoryQuestion=/(وش الملفات|ايش الملفات|ما هي الملفات|الملفات الموجودة|وش البيانات الموجودة|ايش البيانات الموجودة|what files|which files)/i;
+const explicitRelationalRequest=/(اربط|join|connect|relationship|علاق|بين الملفات|مع بعض)/i;
+
 export async function orchestrateAssistant(input:AssistantRunInput):Promise<AssistantResult>{
   const requestId=randomUUID();
   const plan=planAssistantRequest(input.message,input.history);
@@ -29,14 +32,20 @@ export async function orchestrateAssistant(input:AssistantRunInput):Promise<Assi
   let collectionId:string|undefined;
 
   if(intent==='WORKSPACE_SUMMARY'){
-    evidence=workspaceEvidence(s);
-    const top=largestCollections(s)[0];
-    answer=`مساحة «${s.name}» فيها ${s.collectionCount} مجموعات بإجمالي ${s.recordCount.toLocaleString('ar-SA')} سجل، و${s.relationCount} علاقات و${s.automationCount} أتمتة فعالة.${top?` أكبر مجموعة هي «${top.label}» وفيها ${top.value}.`:''}`;
+    if(inventoryQuestion.test(input.message)){
+      const sorted=[...s.collections].sort((a,b)=>b.recordCount-a.recordCount);
+      evidence=sorted.map(c=>({kind:'collection',label:c.name,value:`${c.recordCount.toLocaleString('ar-SA')} سجل`,collectionId:c.id}));
+      answer=`عندك ${s.collectionCount.toLocaleString('ar-SA')} مجموعات بيانات:\n${sorted.map(c=>`• ${c.name}: ${c.recordCount.toLocaleString('ar-SA')} سجل`).join('\n')}\n\nالإجمالي ${s.recordCount.toLocaleString('ar-SA')} سجل.`;
+    }else{
+      evidence=workspaceEvidence(s);
+      const top=largestCollections(s)[0];
+      answer=`مساحة «${s.name}» فيها ${s.collectionCount} مجموعات بإجمالي ${s.recordCount.toLocaleString('ar-SA')} سجل، و${s.relationCount} علاقات و${s.automationCount} أتمتة فعالة.${top?` أكبر مجموعة هي «${top.label}» وفيها ${top.value}.`:''}`;
+    }
   }else if(intent==='RELATIONSHIPS'){
     evidence=relationEvidence(s);
     answer=`عندك ${s.relationCount} علاقات معرفة رسميًا. العلاقات المحتملة اللي تظهر هنا مجرد اقتراحات مبنية على مفاتيح متطابقة، وما أعتمد أي علاقة جديدة إلا بعد تأكيدك.`;
   }else{
-    const relational=await analyzeAcrossRelations(effectiveMessage,s);
+    const relational=explicitRelationalRequest.test(input.message)?await analyzeAcrossRelations(effectiveMessage,s):null;
     if(relational){
       answer=relational.answer;evidence=relational.evidence;sources=relational.sources;collectionId=relational.collectionId;
     }else{
@@ -71,6 +80,7 @@ export async function orchestrateAssistant(input:AssistantRunInput):Promise<Assi
 }
 
 function followUpsFor(intent:AssistantResult['intent'],hasSource:boolean){
+  if(intent==='WORKSPACE_SUMMARY')return ['لخص لي أكبر مجموعات البيانات','ورّني العلاقات بين الملفات','حلل جودة employees'];
   if(intent==='RELATIONSHIPS')return ['وش أفضل علاقة أبدأ فيها؟','وش الحقول المشتركة؟','بعد الربط حللهم مع بعض'];
   if(!hasSource)return ['لخص مساحة العمل','وش الملفات الموجودة عندي؟','ورّني العلاقات بين البيانات'];
   if(intent==='DATA_QUALITY')return ['وش أخطر مشكلة جودة؟','ورّني الحقول الأكثر نقصًا','سو لي View للمشاكل'];
