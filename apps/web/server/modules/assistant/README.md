@@ -1,97 +1,121 @@
 # ORBIT Copilot backend
 
-ORBIT Copilot is split into explicit layers so data access, language reasoning, deterministic calculations, source grounding, conversation memory and mutations never collapse into one route handler.
+ORBIT Copilot is split into explicit layers so language reasoning, deterministic calculations, source grounding, conversation memory and mutations stay independently testable.
 
 ```text
 assistant/
-├── config.ts                  # runtime/model limits
-├── types.ts                   # shared contracts + safe query DSL
-├── history.ts                 # bounded recent-turn context
-├── intent.ts                  # scored intent classification
-├── semantic.ts                # bilingual source/field semantics
-├── planner.ts                 # deterministic request planning
-├── repository.ts              # workspace snapshot reads
-├── query-engine.ts            # workspace-level deterministic metrics
-├── structured-query.ts        # validated single-source query executor
-├── relational-analytics.ts    # saved-relation multi-source hash joins
-├── grounding.ts               # source truth + hallucination checks
-├── prompt.ts                  # isolated Copilot system instructions
-├── provider.ts                # model planner + model answer adapter
-├── actions.ts                 # action proposal factory
-├── action-executor.ts         # confirmed permission-checked mutations
-├── conversation-store.ts      # persisted private thread memory + feedback
-├── orchestrator.ts            # plan → query → ground → explain → act
-├── service.ts                 # application boundary
-├── analytics.ts               # compatibility facade
-└── analysis/
-    ├── types.ts               # deterministic analysis contracts
-    ├── utils.ts               # shared value helpers
-    ├── runtime.ts             # strategy dispatcher + data loading
-    ├── sla.ts                 # SLA/breach strategy
-    ├── quality.ts             # missing/duplicate strategy
-    ├── ranking.ts             # numeric aggregation/ranking strategy
-    └── fallback.ts            # no-assumption source-aware fallback
+├── config.ts
+├── types.ts
+├── history.ts
+├── intent.ts
+├── semantic.ts
+├── planner.ts
+├── repository.ts
+├── query-engine.ts
+├── structured-query.ts
+├── relational-analytics.ts
+├── relationship-proposals.ts
+├── grounding.ts
+├── prompt.ts
+├── provider.ts
+├── response-composer.ts
+├── tool-registry.ts
+├── runtime-status.ts
+├── automation-plan.ts
+├── actions.ts
+├── action-executor.ts
+├── conversation-store.ts
+├── orchestrator.ts
+├── service.ts
+├── analytics.ts
+├── analysis/
+│   ├── runtime.ts
+│   ├── sla.ts
+│   ├── quality.ts
+│   ├── anomaly.ts
+│   ├── trend.ts
+│   ├── search.ts
+│   ├── stats.ts
+│   ├── ranking.ts
+│   └── fallback.ts
+└── execution/
+    ├── index.ts
+    ├── types.ts
+    ├── relation.ts
+    ├── view.ts
+    ├── dashboard.ts
+    ├── automation.ts
+    └── plan.ts
 ```
+
+## Read tools
+
+- `inspect_workspace` — collections, counts, relations and automations.
+- `inspect_collection` — schema/source inspection.
+- `run_query` — validated aggregate/filter query DSL.
+- `profile_data` — missing/duplicate quality checks.
+- `find_relationships` — saved relations and safe proposals.
+- `export_csv` / `export_json` — authenticated collection export.
+
+Deterministic strategies also cover SLA ranking, outlier detection using IQR, date trends, tolerant record search, descriptive statistics and numeric ranking.
+
+## Action tools
+
+- `create_relation`
+- `create_view`
+- `create_dashboard`
+- `create_automation`
+- `execute_plan`
+
+Every mutation requires an explicit UI confirmation, a server-side capability check and an audit entry. Compound plans are bounded to eight mutation steps. They are sequential rather than transactional across unrelated entities; if a later step fails ORBIT reports which earlier steps already completed instead of claiming the whole plan succeeded.
+
+A relation-dependent request can be resumed: ORBIT proposes the relation, the user confirms it, and the client sends the original request again so deterministic relational analysis continues using the newly saved relation.
+
+## Multi-file reasoning
+
+Cross-file analysis only uses saved `CollectionRelation` objects. ORBIT does not silently join columns because their names look alike. Explicit `collection.field` pairs are honored after validation; otherwise proposals are scored by key compatibility, request relevance and sample overlap. The relation engine can traverse a bounded saved-relation path across several mentioned collections, performs hash joins, caps joined tuples and reports every source and join field used.
+
+## Automation behavior
+
+The current runtime can execute active rules for `RECORD_CREATED` and `IMPORT_COMPLETED`, with `AUDIT_LOG` and `WEBHOOK` actions. Copilot translates requests into those real primitives when the wording is safely mappable. Unsupported scheduling/reminder behavior is stored as `REVIEW_REQUIRED` in a paused rule rather than being falsely described as executable.
 
 ## Answer lifecycle
 
 ```text
 /api/assistant
-  → authenticate user + workspace capability
-  → restore private conversation context
-  → workspace snapshot
-  → request planner
-  → relationship-aware analysis when needed
-  → optional model-generated structured query plan
+  → authenticate + capability check
+  → restore tenant-scoped conversation context
+  → load workspace snapshot
+  → classify and contextualize request
+  → saved-relation analysis when required
+  → optional provider query plan
   → validate plan against real schema
-  → deterministic query execution
-  → exact SourceRef + Evidence
-  → optional model explanation
-  → grounding validator rejects unsupported numeric claims
-  → safe action proposals
+  → deterministic calculation
+  → SourceRef + Evidence
+  → natural response composition
+  → optional provider explanation
+  → grounding validator
+  → action/export proposals
   → persist answer metadata
-  → response
 ```
 
-This is intentionally **not** text-to-SQL. The model can propose a small query DSL, but ORBIT validates every collection, field, operator and limit before the deterministic engine touches records.
+The model never receives database credentials and never executes SQL. The query planner uses a small validated DSL instead of text-to-SQL. Quantitative truth comes from deterministic engines. Provider answers that introduce numeric facts absent from ground truth are rejected.
 
-## Multi-file reasoning
+## Conversation and feedback
 
-Cross-file requests use saved `CollectionRelation` objects. ORBIT never silently assumes that two similarly named columns are a valid join. The relational engine performs bounded in-memory hash joins and reports every source collection and join field used.
+`AssistantConversation` and `AssistantMessage` are scoped to the current workspace and user. The browser stores only the active conversation id. Server authorization verifies ownership on restore. `AssistantFeedback` stores per-message thumbs-up/down feedback; it is a signal for future learning, not model fine-tuning by itself.
 
-## Mutation lifecycle
+## Runtime diagnostics
+
+Authenticated endpoint:
 
 ```text
-Copilot proposes action
-  → UI shows confirmation
-  → user explicitly confirms
-  → /api/assistant/actions
-  → capability check
-  → action executor
-  → database mutation
-  → audit log
+GET /api/assistant/status
 ```
 
-## Conversation memory
-
-`AssistantConversation` and `AssistantMessage` are tenant-scoped to the current workspace and user. The browser only stores the active conversation id; server-side authorization verifies ownership on every restore. Assistant metadata persists the request id, source references, evidence, intent, confidence and execution mode so a restored thread still shows provenance.
-
-`AssistantFeedback` stores thumbs-up/down feedback per assistant message. It is the first building block for future privacy-safe learning; it is **not** model fine-tuning by itself.
-
-## Hard safety / correctness rules
-
-- A model never receives database credentials and never executes SQL.
-- A model can plan within a validated DSL and explain computed results; it cannot author numeric truth.
-- Dataset values, filenames, fields and conversation text are untrusted input, never system instructions.
-- If a supporting source cannot be resolved, ORBIT explicitly says so.
-- Mutations require explicit confirmation plus server-side capability checks.
-- Conversation history is bounded and sanitized before model use.
-- Provider timeouts/failures fall back to deterministic behavior instead of breaking the chat.
-- AI-written answers are rejected if they introduce numeric facts absent from the deterministic ground truth.
+It reports whether the language-model provider is configured, the current model name when available, the exposed Copilot tool manifest and core execution guarantees without exposing secrets.
 
 ## Model configuration
-
-The language-model layer is provider-agnostic and expects an OpenAI-compatible chat endpoint:
 
 ```env
 AI_API_URL=
@@ -99,4 +123,4 @@ AI_API_KEY=
 AI_MODEL=
 ```
 
-Without those variables ORBIT still works as a deterministic, source-grounded data copilot. Connecting a strong language model improves natural-language understanding, follow-up reasoning and explanation quality, while the deterministic engines remain the authority for workspace facts.
+Without those variables ORBIT still runs the deterministic source-grounded engines. A strong compatible language model improves natural-language planning and explanation, while deterministic ORBIT components remain authoritative for workspace facts and mutations.
