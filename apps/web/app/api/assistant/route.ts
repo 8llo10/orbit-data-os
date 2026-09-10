@@ -17,9 +17,8 @@ export async function POST(req:Request){
    db.automationRule.count({where:{workspaceId:ws.id,status:'ACTIVE'}}),
    db.collectionRelation.count({where:{fromCollection:{workspaceId:ws.id}}})
   ]);
-  const context={workspace:ws.name,collectionCount:collections.length,totalRecords,imports,automations,relations,collections:collections.map(c=>({name:c.name,records:c._count.records,fields:c.fields.map(f=>({name:f.name,label:f.label,type:f.type,required:f.required}))}))};
+  const context={workspace:ws.name,collectionCount:collections.length,totalRecords,imports,automations,relations,collections:collections.map(c=>({name:c.name,records:c._count.records,fields:c.fields.map(f=>({name:f.key,label:f.label,type:f.type,required:f.required}))}))};
   const local=answerLocally(message,context);
-  // Optional provider layer: set AI_API_URL, AI_API_KEY and AI_MODEL to any OpenAI-compatible endpoint.
   if(process.env.AI_API_URL&&process.env.AI_API_KEY&&process.env.AI_MODEL){
    try{
     const r=await fetch(process.env.AI_API_URL,{method:'POST',headers:{'content-type':'application/json','authorization':`Bearer ${process.env.AI_API_KEY}`},body:JSON.stringify({model:process.env.AI_MODEL,temperature:0.2,messages:[{role:'system',content:`You are ORBIT Assistant. Answer in Arabic unless the user writes English. You must only use the supplied workspace facts for factual claims. Never invent counts or rows. If the user asks to change data, explain the intended action but do not claim it was executed. Workspace facts: ${JSON.stringify(context)}`},{role:'user',content:message}]})});
