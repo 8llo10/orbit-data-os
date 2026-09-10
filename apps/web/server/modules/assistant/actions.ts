@@ -1,10 +1,11 @@
 import {randomUUID} from 'crypto';
 import type {AssistantAction,AssistantIntent} from './types';
 
-const wantsCreate=/(سو|سوي|أنشئ|انشئ|اعمل|ابني|جهز|create|make|build|save)/i;
+const wantsCreate=/(سو|سوي|أنشئ|انشئ|اعمل|ابني|جهز|create|make|build|save|أضف|اضف)/i;
 const wantsDashboard=/(dashboard|داشبورد|لوحة)/i;
 const wantsAutomation=/(automation|أتمت|اتمت|تنبيه|نبه|alert|remind|webhook|trigger)/i;
 const wantsView=/(view|عرض محفوظ|احفظ.*نتيج|save.*view)/i;
+const wantsFormula=/(عمود|حقل|column|field).*(احسب|حساب|معادلة|formula|=|من)/i;
 const wantsCsv=/(csv|سي ?اس ?في|اكسل|excel)/i;
 const wantsJson=/(json|جيسون)/i;
 const wantsExport=/(صدر|صدّر|export|download|نزل|نزّل)/i;
@@ -14,6 +15,18 @@ export const navigateAction=(label:string,href:string):AssistantAction=>({id:ran
 function dashboardAction(message:string,collectionId?:string):AssistantAction{return{id:randomUUID(),type:'create_dashboard',label:'إنشاء Dashboard من النتيجة',requiresConfirmation:true,payload:{name:'ORBIT Generated Dashboard',collectionId:collectionId||null,request:message}}}
 function automationAction(message:string,collectionId?:string):AssistantAction{return{id:randomUUID(),type:'create_automation',label:'إنشاء الأتمتة المقترحة',requiresConfirmation:true,payload:{name:`ORBIT: ${message.slice(0,70)}`,collectionId:collectionId||null,request:message}}}
 function viewAction(message:string,collectionId:string):AssistantAction{return{id:randomUUID(),type:'create_view',label:'حفظ النتيجة كـ View',requiresConfirmation:true,payload:{name:'ORBIT Generated View',collectionId,request:message}}}
+
+function formulaAction(message:string,collectionId:string):AssistantAction|null{
+ if(!wantsFormula.test(message))return null;
+ const eq=message.match(/(?:عمود|حقل|column|field)\s+[«"']?([^=:\n،,]{2,60}?)[»"']?\s*(?:=|يساوي|formula[:：]?|معادل(?:ة|ته)[:：]?|من)\s*(.+)$/i);
+ if(!eq)return null;
+ const label=eq[1].trim().replace(/^(اسمه|اسمة|باسم|name)\s+/i,'').trim();
+ let formula=eq[2].trim().replace(/[.،]+$/,'');
+ if(!label||!formula)return null;
+ formula=formula.replace(/\b([A-Za-z_][A-Za-z0-9_-]*)\b/g,(token)=>['CONCAT'].includes(token.toUpperCase())||/^\d/.test(token)?token:`{${token}}`);
+ formula=formula.replace(/\{CONCAT\}/gi,'CONCAT');
+ return {id:randomUUID(),type:'create_formula',label:`إنشاء الحقل «${label}» وحسابه`,requiresConfirmation:true,payload:{collectionId,label,formula,request:message}};
+}
 
 export function exportActions(message:string,collectionId?:string):AssistantAction[]{
  if(!collectionId||!wantsExport.test(message))return [];
@@ -25,6 +38,7 @@ export function exportActions(message:string,collectionId?:string):AssistantActi
 
 export function requestedMutationActions(input:{intent:AssistantIntent;message:string;collectionId?:string}){
  const {intent,message,collectionId}=input;const explicit=wantsCreate.test(message);const steps:AssistantAction[]=[];
+ if(collectionId){const formula=formulaAction(message,collectionId);if(formula)steps.push(formula);}
  if((explicit&&wantsDashboard.test(message))||intent==='DASHBOARD')steps.push(dashboardAction(message,collectionId));
  if((explicit&&wantsAutomation.test(message))||intent==='AUTOMATION')steps.push(automationAction(message,collectionId));
  if(collectionId&&explicit&&wantsView.test(message))steps.push(viewAction(message,collectionId));
