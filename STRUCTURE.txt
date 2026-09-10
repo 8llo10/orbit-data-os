@@ -1,0 +1,42 @@
+ORBIT — Personal Data Operating System
+
+apps/web
+├── app
+│   ├── api
+│   │   ├── auth                  login / logout / register
+│   │   ├── collections           collection operations, formulas, views, exports
+│   │   ├── imports               ingestion pipeline
+│   │   ├── automations           workflow creation and status
+│   │   ├── developer             API keys + webhooks
+│   │   ├── settings              profile/workspace settings
+│   │   └── v1                    public REST API
+│   ├── dashboard
+│   │   ├── collections           collection catalog + deep data explorer
+│   │   ├── imports               ingestion UI + history
+│   │   ├── search                workspace universal search
+│   │   ├── graph                 relationship graph
+│   │   ├── automations           automation builder
+│   │   ├── developer             API/webhook control plane
+│   │   ├── activity              audit trail
+│   │   └── settings              workspace configuration
+│   ├── login
+│   ├── register
+│   └── page.tsx                  public landing page
+├── components
+│   ├── AppShell
+│   ├── CollectionView
+│   ├── CommandPalette
+│   ├── DataTable
+│   ├── InsightBars
+│   └── ThemeToggle
+└── lib
+    ├── analytics                 data profiling
+    ├── api-key                   key generation/verification
+    ├── auth                      session management
+    ├── automation               rule execution
+    ├── formula                  computed fields
+    └── importer                 CSV/TSV/JSON/Excel ingestion
+
+packages/core                       schema inference
+packages/db                         Prisma/PostgreSQL
+packages/ui                         shared UI primitives

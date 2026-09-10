@@ -1,0 +1,2 @@
+import {NextResponse} from 'next/server';import {workspaceFromApiKey} from '@/lib/api-key';import {db} from '@orbit/db';
+export async function GET(req:Request){const ws=await workspaceFromApiKey(req);if(!ws)return NextResponse.json({error:'Invalid or missing x-api-key'},{status:401});const data=await db.collection.findMany({where:{workspaceId:ws.id},include:{fields:true,_count:{select:{records:true}}},orderBy:{updatedAt:'desc'}});return NextResponse.json({data:data.map(c=>({id:c.id,name:c.name,slug:c.slug,fields:c.fields,recordCount:c._count.records}))})}

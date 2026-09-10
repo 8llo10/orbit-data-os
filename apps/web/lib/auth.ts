@@ -1,0 +1,9 @@
+import {cookies} from 'next/headers';import {createHash,randomBytes} from 'crypto';import {db} from '@orbit/db';import type {WorkspaceRole} from '@prisma/client';
+const COOKIE='orbit_session';const DAYS=30;const hash=(v:string)=>createHash('sha256').update(v).digest('hex');
+export async function createSession(userId:string){const token=randomBytes(32).toString('hex');const expiresAt=new Date(Date.now()+DAYS*86400000);await db.session.create({data:{userId,tokenHash:hash(token),expiresAt}});const jar=await cookies();jar.set(COOKIE,token,{httpOnly:true,sameSite:'lax',secure:process.env.NODE_ENV==='production',path:'/',expires:expiresAt})}
+export async function destroySession(){const jar=await cookies();const token=jar.get(COOKIE)?.value;if(token)await db.session.deleteMany({where:{tokenHash:hash(token)}});jar.set(COOKIE,'',{httpOnly:true,path:'/',expires:new Date(0)})}
+export async function currentUser(){const jar=await cookies();const token=jar.get(COOKIE)?.value;if(!token)return null;const session=await db.session.findUnique({where:{tokenHash:hash(token)},include:{user:{include:{memberships:{include:{workspace:true}}}}}});if(!session||session.expiresAt<new Date()){if(session)await db.session.delete({where:{id:session.id}}).catch(()=>{});return null}return session.user}
+export async function requireUser(){const user=await currentUser();if(!user)throw new Error('UNAUTHORIZED');return user}
+export async function activeMembership(){const user=await requireUser();return user.memberships[0]??null}
+export async function activeWorkspace(){const membership=await activeMembership();return membership?.workspace??null}
+export async function requireRole(roles:WorkspaceRole[]=['OWNER','ADMIN','MEMBER']){const m=await activeMembership();if(!m||!roles.includes(m.role))throw new Error('FORBIDDEN');return m}

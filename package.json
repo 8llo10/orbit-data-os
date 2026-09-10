@@ -1,0 +1,13 @@
+{
+  "name": "orbit-personal-data-os",
+  "private": true,
+  "packageManager": "npm@10.8.2",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev --workspace @orbit/web",
+    "build": "npm run build --workspace @orbit/web",
+    "lint": "npm run lint --workspace @orbit/web",
+    "db:generate": "npm run db:generate --workspace @orbit/db",
+    "db:push": "npm run db:push --workspace @orbit/db"
+  }
+}

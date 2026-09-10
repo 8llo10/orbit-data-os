@@ -1,0 +1,2 @@
+import { NextResponse } from 'next/server';import { activeWorkspace } from '@/lib/auth';import { db } from '@orbit/db';
+export async function GET(){try{const ws=await activeWorkspace();if(!ws)return NextResponse.json({error:'Unauthorized'},{status:401});const collections=await db.collection.findMany({where:{workspaceId:ws.id},include:{fields:true,_count:{select:{records:true}}}});return NextResponse.json(collections)}catch{return NextResponse.json({error:'Unauthorized'},{status:401})}}
