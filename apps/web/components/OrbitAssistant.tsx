@@ -6,29 +6,97 @@ type Source={collectionId:string;collectionName:string;fields:string[];examinedR
 type Evidence={kind:'metric'|'collection'|'field'|'sample'|'warning';label:string;value:string};
 type Action={id:string;type:'navigate'|'create_dashboard'|'create_automation'|'create_view'|'inspect_collection';label:string;href?:string;requiresConfirmation:boolean;payload?:Record<string,unknown>};
 type Msg={role:'user'|'assistant';content:string;evidence?:Evidence[];sources?:Source[];actions?:Action[];followUps?:string[];mode?:string;requestId?:string};
+
 const starters=['حلل جودة البيانات وحدد لي المشاكل بالمصدر','أي موقع عنده أعلى SLA breaches؟','وش الأجهزة اللي عندها حرارة أو latency غير طبيعية؟','اقترح لي Dashboard ونفذه بعد ما أوافق'];
-const str=(v:unknown,f='')=>typeof v==='string'?v:f;const num=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)?v:Number.isFinite(Number(v))?Number(v):0;
-function parseSources(v:unknown):Source[]{if(!Array.isArray(v))return [];return v.filter(x=>x&&typeof x==='object').map((x)=>{const o=x as Record<string,unknown>;return {collectionId:str(o.collectionId),collectionName:str(o.collectionName,'مصدر بيانات'),fields:Array.isArray(o.fields)?o.fields.filter((f):f is string=>typeof f==='string'):[],examinedRows:num(o.examinedRows),totalRows:num(o.totalRows),href:str(o.href,'/dashboard/collections')}})}
-function parseEvidence(v:unknown):Evidence[]{if(!Array.isArray(v))return [];return v.filter(x=>x&&typeof x==='object').map(x=>{const o=x as Record<string,unknown>;const kind=['metric','collection','field','sample','warning'].includes(str(o.kind))?str(o.kind) as Evidence['kind']:'metric';return {kind,label:str(o.label,'نتيجة'),value:str(o.value,'—')}})}
-function parseActions(v:unknown):Action[]{if(!Array.isArray(v))return [];return v.filter(x=>x&&typeof x==='object').map((x,i)=>{const o=x as Record<string,unknown>;const type=['navigate','create_dashboard','create_automation','create_view','inspect_collection'].includes(str(o.type))?str(o.type) as Action['type']:'navigate';return {id:str(o.id,`action-${i}`),type,label:str(o.label,'فتح'),href:typeof o.href==='string'?o.href:undefined,requiresConfirmation:o.requiresConfirmation===true,payload:o.payload&&typeof o.payload==='object'&&!Array.isArray(o.payload)?o.payload as Record<string,unknown>:undefined}})}
+const str=(v:unknown,f='')=>typeof v==='string'?v:f;
+const num=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)?v:Number.isFinite(Number(v))?Number(v):0;
+
+function parseSources(v:unknown):Source[]{
+ if(!Array.isArray(v))return [];
+ return v.filter(x=>x&&typeof x==='object').map(x=>{
+  const o=x as Record<string,unknown>;
+  return {collectionId:str(o.collectionId),collectionName:str(o.collectionName,'مصدر بيانات'),fields:Array.isArray(o.fields)?o.fields.filter((f):f is string=>typeof f==='string'):[],examinedRows:num(o.examinedRows),totalRows:num(o.totalRows),href:str(o.href,'/dashboard/collections')};
+ });
+}
+
+function parseEvidence(v:unknown):Evidence[]{
+ if(!Array.isArray(v))return [];
+ return v.filter(x=>x&&typeof x==='object').map(x=>{
+  const o=x as Record<string,unknown>;
+  const kind=['metric','collection','field','sample','warning'].includes(str(o.kind))?str(o.kind) as Evidence['kind']:'metric';
+  return {kind,label:str(o.label,'نتيجة'),value:str(o.value,'—')};
+ });
+}
+
+function parseActions(v:unknown):Action[]{
+ if(!Array.isArray(v))return [];
+ return v.filter(x=>x&&typeof x==='object').map((x,i)=>{
+  const o=x as Record<string,unknown>;
+  const type=['navigate','create_dashboard','create_automation','create_view','inspect_collection'].includes(str(o.type))?str(o.type) as Action['type']:'navigate';
+  return {id:str(o.id,`action-${i}`),type,label:str(o.label,'فتح'),href:typeof o.href==='string'?o.href:undefined,requiresConfirmation:o.requiresConfirmation===true,payload:o.payload&&typeof o.payload==='object'&&!Array.isArray(o.payload)?o.payload as Record<string,unknown>:undefined};
+ });
+}
 
 export default function OrbitAssistant({compact=false}:{compact?:boolean}){
  const [messages,setMessages]=useState<Msg[]>([{role:'assistant',content:'أنا ORBIT Copilot. أي معلومة عن ملفاتك لازم أربطها بمصدر واضح. إذا ما لقيت دليل أقول لك صراحة ما لقيت. وإذا طلبت تنفيذ Dashboard أو View أو Automation أعرض الإجراء وأنت تأكدينه قبل التنفيذ.'}]);
- const [text,setText]=useState('');const [loading,setLoading]=useState(false);const [executing,setExecuting]=useState<string|null>(null);const [executed,setExecuted]=useState<Record<string,string>>({});const end=useRef<HTMLDivElement>(null);
+ const [text,setText]=useState('');
+ const [loading,setLoading]=useState(false);
+ const [executing,setExecuting]=useState<string|null>(null);
+ const [executed,setExecuted]=useState<Record<string,string>>({});
+ const end=useRef<HTMLDivElement>(null);
+
  useEffect(()=>{try{end.current?.scrollIntoView({behavior:'smooth',block:'nearest'})}catch{}},[messages,loading,executed]);
- async function send(value?:string){const q=(value??text).trim();if(!q||loading)return;setMessages(m=>[...m,{role:'user',content:q}]);setText('');setLoading(true);try{const r=await fetch('/api/assistant',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:q})});const raw:unknown=await r.json().catch(()=>null);const d=raw&&typeof raw==='object'?raw as Record<string,unknown>:{};if(!r.ok){const er=d.error&&typeof d.error==='object'?d.error as Record<string,unknown>:{};throw new Error(str(er.message,str(d.error,'تعذر تنفيذ الطلب')))}setMessages(m=>[...m,{role:'assistant',content:str(d.answer,'ما قدرت أطلع إجابة موثوقة من البيانات الحالية.'),evidence:parseEvidence(d.evidence),sources:parseSources(d.sources),actions:parseActions(d.actions),followUps:Array.isArray(d.followUps)?d.followUps.filter((x):x is string=>typeof x==='string'):[],mode:str(d.mode),requestId:str(d.requestId)}]);}catch(e){setMessages(m=>[...m,{role:'assistant',content:e instanceof Error?e.message:'صار خطأ غير متوقع.'}]);}finally{setLoading(false)}}
- async function execute(a:Action){if(!a.requiresConfirmation)return;if(!window.confirm(`تأكيد التنفيذ:\n${a.label}\n\nORBIT راح يسجل هذا الإجراء في Audit Log.`))return;setExecuting(a.id);try{const r=await fetch('/api/assistant/actions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({confirmed:true,action:a})});const raw:unknown=await r.json().catch(()=>null);const d=raw&&typeof raw==='object'?raw as Record<string,unknown>:{};if(!r.ok){const er=d.error&&typeof d.error==='object'?d.error as Record<string,unknown>:{};throw new Error(str(er.message,'فشل التنفيذ'))}setExecuted(x=>({...x,[a.id]:str(d.message,'تم التنفيذ')}));}catch(e){setExecuted(x=>({...x,[a.id]:e instanceof Error?e.message:'فشل التنفيذ'}));}finally{setExecuting(null)}}
+
+ async function send(value?:string){
+  const q=(value??text).trim();if(!q||loading)return;
+  setMessages(m=>[...m,{role:'user',content:q}]);setText('');setLoading(true);
+  try{
+   const r=await fetch('/api/assistant',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:q})});
+   const raw:unknown=await r.json().catch(()=>null);
+   const d=raw&&typeof raw==='object'?raw as Record<string,unknown>:{};
+   if(!r.ok){const er=d.error&&typeof d.error==='object'?d.error as Record<string,unknown>:{};throw new Error(str(er.message,str(d.error,'تعذر تنفيذ الطلب')))}
+   setMessages(m=>[...m,{role:'assistant',content:str(d.answer,'ما قدرت أطلع إجابة موثوقة من البيانات الحالية.'),evidence:parseEvidence(d.evidence),sources:parseSources(d.sources),actions:parseActions(d.actions),followUps:Array.isArray(d.followUps)?d.followUps.filter((x):x is string=>typeof x==='string'):[],mode:str(d.mode),requestId:str(d.requestId)}]);
+  }catch(e){setMessages(m=>[...m,{role:'assistant',content:e instanceof Error?e.message:'صار خطأ غير متوقع.'}]);}
+  finally{setLoading(false)}
+ }
+
+ async function execute(a:Action){
+  if(!a.requiresConfirmation)return;
+  if(!window.confirm(`تأكيد التنفيذ:\n${a.label}\n\nORBIT راح يسجل هذا الإجراء في Audit Log.`))return;
+  setExecuting(a.id);
+  try{
+   const r=await fetch('/api/assistant/actions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({confirmed:true,action:a})});
+   const raw:unknown=await r.json().catch(()=>null);
+   const d=raw&&typeof raw==='object'?raw as Record<string,unknown>:{};
+   if(!r.ok){const er=d.error&&typeof d.error==='object'?d.error as Record<string,unknown>:{};throw new Error(str(er.message,'فشل التنفيذ'))}
+   setExecuted(x=>({...x,[a.id]:str(d.message,'تم التنفيذ')}));
+  }catch(e){setExecuted(x=>({...x,[a.id]:e instanceof Error?e.message:'فشل التنفيذ'}));}
+  finally{setExecuting(null)}
+ }
+
  function submit(e:FormEvent){e.preventDefault();send()}
+
  return <section className={compact?'orbitCopilot compact':'orbitCopilot'}>
-  <header><div className="identity"><span className="orb"><Sparkles size={18}/></span><div><b>ORBIT Copilot</b><small>Grounded answers · source trace · executable actions</small></div></div><div className="trust"><span><FileSearch size={12}/> Source-first</span><span><ShieldCheck size={12}/> Confirmed execution</span><span><Network size={12}/> Workspace-aware</span></div></header>
-  <main>{messages.map((m,i)=><div className={'turn '+m.role} key={i}>{m.role==='assistant'&&<span className="avatar"><Bot size={15}/></span>}<div className="turnBody"><div className="bubble">{m.content}</div>{m.mode&&<div className="meta"><CheckCircle2 size={11}/>{m.mode==='ai-orchestrated'?'AI + grounded engine':'Grounded deterministic engine'}{m.requestId&&<code>{m.requestId.slice(0,8)}</code>}</div>}
-   {m.sources&&m.sources.length>0?<section className="sources"><div className="sectionLabel"><Database size={12}/> المصادر المستخدمة</div>{m.sources.map((s,j)=><a href={s.href||'/dashboard/collections'} key={`${s.collectionId}-${j}`}><div><b>{s.collectionName||'مصدر بيانات'}</b><small>{num(s.examinedRows).toLocaleString('ar-SA')} / {num(s.totalRows).toLocaleString('ar-SA')} سجل تم فحصه</small></div><div className="fieldTags">{(Array.isArray(s.fields)?s.fields:[]).slice(0,6).map((f,k)=><span key={`${f}-${k}`}>{f}</span>)}</div><ExternalLink size={13}/></a>)}</section>:m.role==='assistant'&&i>0?<div className="noSource"><FileSearch size={12}/> لا يوجد مصدر ملف مستخدم في هذا الرد.</div>:null}
-   {m.evidence&&m.evidence.length>0?<div className="evidence">{m.evidence.map((e,j)=><article className={e.kind==='warning'?'warn':''} key={j}><small>{e.label}</small><b>{e.value}</b></article>)}</div>:null}
-   {m.actions&&m.actions.length>0?<div className="actions">{m.actions.map(a=>a.requiresConfirmation?<div className="actionBox" key={a.id}><button disabled={executing===a.id} onClick={()=>execute(a)}>{executing===a.id?<Loader2 size={12}/>:<Play size={12}/>} تأكيد وتنفيذ · {a.label}</button>{executed[a.id]&&<small>{executed[a.id]}</small>}</div>:<a key={a.id} href={a.href||'/dashboard/collections'}>{a.label}</a>)}</div>:null}
-   {m.followUps&&m.followUps.length>0&&i===messages.length-1?<div className="followups">{m.followUps.map((x,k)=><button key={`${x}-${k}`} onClick={()=>send(x)}>{x}</button>)}</div>:null}</div></div>)}{loading&&<div className="turn assistant"><span className="avatar"><Bot size={15}/></span><div className="bubble loading"><Loader2 size={15}/> أحدد المصدر وأحسب النتيجة…</div></div>}<div ref={end}/></main>
+  <header>
+   <div className="identity"><span className="orb"><Sparkles size={18}/></span><div><b>ORBIT Copilot</b><small>Grounded answers · source trace · executable actions</small></div></div>
+   <div className="trust"><span><FileSearch size={12}/> Source-first</span><span><ShieldCheck size={12}/> Confirmed execution</span><span><Network size={12}/> Workspace-aware</span></div>
+  </header>
+  <main>
+   {messages.map((m,i)=><div className={'turn '+m.role} key={i}>
+    {m.role==='assistant'&&<span className="avatar"><Bot size={15}/></span>}
+    <div className="turnBody"><div className="bubble">{m.content}</div>
+     {m.mode&&<div className="meta"><CheckCircle2 size={11}/>{m.mode==='ai-orchestrated'?'AI + grounded engine':'Grounded deterministic engine'}{m.requestId&&<code>{m.requestId.slice(0,8)}</code>}</div>}
+     {m.sources&&m.sources.length>0?<section className="sources"><div className="sectionLabel"><Database size={12}/> المصادر المستخدمة</div>{m.sources.map((s,j)=><a href={s.href||'/dashboard/collections'} key={`${s.collectionId}-${j}`}><div><b>{s.collectionName||'مصدر بيانات'}</b><small>{num(s.examinedRows).toLocaleString('ar-SA')} / {num(s.totalRows).toLocaleString('ar-SA')} سجل تم فحصه</small></div><div className="fieldTags">{(Array.isArray(s.fields)?s.fields:[]).slice(0,6).map((f,k)=><span key={`${f}-${k}`}>{f}</span>)}</div><ExternalLink size={13}/></a>)}</section>:m.role==='assistant'&&i>0?<div className="noSource"><FileSearch size={12}/> لا يوجد مصدر ملف مستخدم في هذا الرد.</div>:null}
+     {m.evidence&&m.evidence.length>0?<div className="evidence">{m.evidence.map((e,j)=><article className={e.kind==='warning'?'warn':''} key={j}><small>{e.label}</small><b>{e.value}</b></article>)}</div>:null}
+     {m.actions&&m.actions.length>0?<div className="actions">{m.actions.map(a=>a.requiresConfirmation?<div className="actionBox" key={a.id}><button disabled={executing===a.id} onClick={()=>execute(a)}>{executing===a.id?<Loader2 size={12}/>:<Play size={12}/>} تأكيد وتنفيذ · {a.label}</button>{executed[a.id]&&<small>{executed[a.id]}</small>}</div>:<a key={a.id} href={a.href||'/dashboard/collections'}>{a.label}</a>)}</div>:null}
+     {m.followUps&&m.followUps.length>0&&i===messages.length-1?<div className="followups">{m.followUps.map((x,k)=><button key={`${x}-${k}`} onClick={()=>send(x)}>{x}</button>)}</div>:null}
+    </div>
+   </div>)}
+   {loading&&<div className="turn assistant"><span className="avatar"><Bot size={15}/></span><div className="bubble loading"><Loader2 size={15}/> أحدد المصدر وأحسب النتيجة…</div></div>}
+   <div ref={end}/>
+  </main>
   {messages.length===1&&!compact&&<div className="starters">{starters.map(x=><button key={x} onClick={()=>send(x)}>{x}</button>)}</div>}
   <form onSubmit={submit}><textarea rows={2} value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}} placeholder="اسأل أي شيء عن ملفاتك أو اطلب إجراء…"/><button disabled={!text.trim()||loading}><ArrowUp size={18}/></button></form>
   <footer><span><BarChart3 size={12}/> ما فيه رقم بدون حساب</span><span><Workflow size={12}/> ما فيه تنفيذ بدون تأكيد</span></footer>
-  <style jsx>{`.orbitCopilot{border:1px solid var(--border);background:linear-gradient(145deg,rgba(201,149,215,.08),var(--panel) 42%);border-radius:24px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.14)}header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:15px;align-items:center}.identity{display:flex;align-items:center;gap:10px}.identity>div{display:flex;flex-direction:column}.identity small,.meta,footer{font-size:9px;color:var(--muted)}.orb,.avatar{display:grid;place-items:center;background:rgba(201,149,215,.13);color:#d6afe0}.orb{width:38px;height:38px;border-radius:13px}.trust{display:flex;gap:6px;flex-wrap:wrap}.trust span{display:flex;gap:4px;align-items:center;border:1px solid var(--border);border-radius:99px;padding:6px 8px;font-size:8px;color:var(--muted)}main{padding:20px;min-height:420px;max-height:650px;overflow:auto}.compact main{min-height:210px;max-height:330px}.turn{display:flex;gap:9px;margin-bottom:20px}.turn.user{justify-content:flex-start;direction:rtl}.avatar{width:30px;height:30px;border-radius:10px;flex:0 0 auto}.turnBody{max-width:88%}.bubble{border:1px solid var(--border);background:rgba(255,255,255,.025);padding:12px 14px;border-radius:15px;font-size:12px;line-height:1.9;white-space:pre-wrap}.user .bubble{background:#d6afe0;color:#241729;border-color:transparent}.meta{display:flex;gap:6px;align-items:center;margin:6px 4px}.meta code{opacity:.65}.sources{margin-top:10px}.sectionLabel{font-size:9px;color:var(--muted);display:flex;gap:5px;align-items:center;margin-bottom:6px}.sources>a{display:grid;grid-template-columns:minmax(120px,1fr) minmax(180px,2fr) auto;gap:10px;align-items:center;border:1px solid rgba(201,149,215,.24);background:rgba(201,149,215,.045);padding:10px;border-radius:12px;text-decoration:none;color:var(--text)}.sources b{display:block;font-size:10px}.sources small{color:var(--muted);font-size:8px}.fieldTags{display:flex;gap:4px;flex-wrap:wrap}.fieldTags span{font:8px monospace;border:1px solid var(--border);padding:3px 5px;border-radius:6px;color:var(--muted)}.noSource{display:flex;gap:5px;align-items:center;margin-top:8px;font-size:9px;color:var(--muted)}.evidence{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:9px}.evidence article{border:1px solid var(--border);background:rgba(255,255,255,.02);padding:9px;border-radius:10px}.evidence article.warn{border-color:rgba(230,160,120,.35)}.evidence small{display:block;color:var(--muted);font-size:8px;margin-bottom:4px}.evidence b{font-size:10px}.actions,.followups{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.actions>a,.followups button,.starters button,.actionBox button{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:9px;padding:7px 9px;font-size:9px;text-decoration:none;cursor:pointer}.actionBox{display:flex;flex-direction:column;gap:4px}.actionBox button{display:flex;gap:5px;align-items:center;border-color:rgba(201,149,215,.4);color:#dcbce5}.actionBox small{font-size:8px;color:var(--muted)}.starters{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:0 18px 14px}.starters button{text-align:start;padding:11px}form{margin:0 14px 10px;border:1px solid var(--border);background:var(--bg);border-radius:16px;padding:9px;display:flex;align-items:flex-end;gap:8px}textarea{resize:none;flex:1;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:12px;line-height:1.6}form button{width:38px;height:38px;border:0;border-radius:11px;background:#d6afe0;color:#241729;display:grid;place-items:center}form button:disabled{opacity:.35}.loading{display:flex;align-items:center;gap:7px;color:var(--muted)}footer{display:flex;justify-content:space-between;padding:0 18px 14px}footer span{display:flex;gap:5px;align-items:center}@media(max-width:720px){.trust{display:none}.turnBody{max-width:94%}.evidence{grid-template-columns:1fr 1fr}.starters{grid-template-columns:1fr}.sources>a{grid-template-columns:1fr auto}.fieldTags{grid-column:1/-1}}`}</style>
  </section>
 }
