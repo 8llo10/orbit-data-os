@@ -2,26 +2,18 @@ import AppShell from '@/components/AppShell';
 import {activeWorkspace} from '@/lib/auth';
 import {db} from '@orbit/db';
 import {redirect} from 'next/navigation';
+import {Network} from 'lucide-react';
 
 export default async function SchemaExplorer(){
-  let ws;try{ws=await activeWorkspace()}catch{redirect('/login')}if(!ws)redirect('/login');
-  const collections=await db.collection.findMany({
-    where:{workspaceId:ws.id},
-    include:{fields:{orderBy:{position:'asc'}},outgoingRelations:true,incomingRelations:true,_count:{select:{records:true}}},
-    orderBy:{updatedAt:'desc'}
-  });
-  return <AppShell>
-    <div className="eyebrow">SCHEMA EXPLORER</div>
-    <h1 className="h1">مخطط البيانات</h1>
-    <p className="lead">هنا تشوف البنية التقنية الحقيقية لكل Collection: أسماء الحقول، أنواعها، العلاقات وعدد السجلات. مفيد قبل بناء API integration أو frontend خارجي.</p>
-    <div className="section">
-      {collections.map(c=><section className="card section" key={c.id}>
-        <div className="sectionTitle"><div><div className="eyebrow">COLLECTION</div><h2>{c.name}</h2><p className="muted"><code>{c.slug}</code> · {c._count.records} records · {c.fields.length} fields</p></div></div>
-        <div className="endpoint"><span className="method">GET</span><code>/api/v1/collections/{c.slug}/records</code><p>Read records</p></div>
-        <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',marginTop:18}}><thead><tr><th style={{textAlign:'start',padding:10}}>Field</th><th style={{textAlign:'start',padding:10}}>Key</th><th style={{textAlign:'start',padding:10}}>Type</th><th style={{textAlign:'start',padding:10}}>Required</th><th style={{textAlign:'start',padding:10}}>Formula</th></tr></thead><tbody>{c.fields.map(f=><tr key={f.id}><td style={{padding:10,borderTop:'1px solid var(--border)'}}>{f.label}</td><td style={{padding:10,borderTop:'1px solid var(--border)'}}><code>{f.key}</code></td><td style={{padding:10,borderTop:'1px solid var(--border)'}}><code>{f.type}</code></td><td style={{padding:10,borderTop:'1px solid var(--border)'}}>{f.required?'yes':'no'}</td><td style={{padding:10,borderTop:'1px solid var(--border)'}}>{f.formula?<code>{f.formula}</code>:'—'}</td></tr>)}</tbody></table></div>
-        <p className="muted" style={{marginTop:16}}>Relations: {c.outgoingRelations.length+c.incomingRelations.length}</p>
-      </section>)}
-      {!collections.length&&<div className="card"><h2>ما عندك بيانات للحين</h2><p className="muted">ارفع ملف أول، وبعدها ORBIT يبني الـschema تلقائيًا ويظهر هنا.</p></div>}
-    </div>
-  </AppShell>
+ let ws;try{ws=await activeWorkspace()}catch{redirect('/login')}if(!ws)redirect('/login');
+ const collections=await db.collection.findMany({where:{workspaceId:ws.id},include:{fields:{orderBy:{position:'asc'}},outgoingRelations:true,incomingRelations:true,_count:{select:{records:true}}},orderBy:{updatedAt:'desc'}});
+ return <AppShell><div className="productPage">
+  <header className="productHero"><div className="productHeroCopy"><span className="productEyebrow"><Network size={14}/> Schema Explorer</span><h1>مخطط البيانات.</h1><p>شوف البنية التقنية الحقيقية لكل Collection: الحقول، الأنواع، العلاقات وعدد السجلات قبل ما تبني تكامل أو واجهة خارجية.</p></div></header>
+  {collections.map(c=><section className="surface panel schemaCollection" key={c.id}>
+   <div className="sectionHead"><div><small>COLLECTION</small><h2>{c.name}</h2><p className="schemaMeta"><code>{c.slug}</code> · {c._count.records.toLocaleString('ar-SA')} سجل · {c.fields.length} حقل</p></div><span className="badge">{c.outgoingRelations.length+c.incomingRelations.length} RELATIONS</span></div>
+   <div className="endpointList"><div className="endpointRow"><span className="endpointMethod">GET</span><code>/api/v1/collections/{c.slug}/records</code><p>قراءة السجلات</p></div></div>
+   <div className="schemaTableWrap"><table className="schemaTable"><thead><tr><th>Field</th><th>Key</th><th>Type</th><th>Required</th><th>Formula</th></tr></thead><tbody>{c.fields.map(f=><tr key={f.id}><td>{f.label}</td><td><code>{f.key}</code></td><td><code>{f.type}</code></td><td>{f.required?'yes':'no'}</td><td>{f.formula?<code>{f.formula}</code>:'—'}</td></tr>)}</tbody></table></div>
+  </section>)}
+  {!collections.length&&<div className="surface emptyState"><h2>ما عندك بيانات للحين.</h2><p>ارفع ملف أول، وبعدها ORBIT يبني الـschema تلقائيًا ويظهر هنا.</p></div>}
+ </div></AppShell>
 }
