@@ -1,193 +1,231 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql"; url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
 
-enum WorkspaceRole { OWNER ADMIN MEMBER VIEWER }
-enum FieldType { TEXT NUMBER BOOLEAN DATE DATETIME EMAIL URL TAGS JSON }
-enum ImportStatus { PENDING PROCESSING COMPLETED FAILED }
-enum AutomationStatus { ACTIVE PAUSED }
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum FieldType {
+  TEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  DATETIME
+  EMAIL
+  URL
+  TAGS
+  JSON
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AutomationStatus {
+  ACTIVE
+  PAUSED
+}
 
 model User {
-  id String @id @default(cuid())
-  email String @unique
+  id           String            @id @default(cuid())
+  email        String            @unique
   passwordHash String
-  name String?
-  createdAt DateTime @default(now())
-  memberships WorkspaceMember[]
-  sessions Session[]
-  auditLogs AuditLog[]
+  name         String?
+  createdAt    DateTime          @default(now())
+  memberships  WorkspaceMember[]
+  sessions     Session[]
+  auditLogs    AuditLog[]
 }
 
 model Session {
-  id String @id @default(cuid())
-  tokenHash String @unique
-  userId String
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
 model Workspace {
-  id String @id @default(cuid())
-  name String
-  slug String @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  members WorkspaceMember[]
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  members     WorkspaceMember[]
   collections Collection[]
-  dashboards Dashboard[]
-  imports ImportJob[]
+  dashboards  Dashboard[]
+  imports     ImportJob[]
   automations AutomationRule[]
-  apiKeys ApiKey[]
-  webhooks Webhook[]
-  auditLogs AuditLog[]
+  apiKeys     ApiKey[]
+  webhooks    Webhook[]
+  auditLogs   AuditLog[]
 }
 
 model WorkspaceMember {
-  id String @id @default(cuid())
+  id          String        @id @default(cuid())
   workspaceId String
-  userId String
-  role WorkspaceRole @default(MEMBER)
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([workspaceId, userId])
 }
 
 model Collection {
-  id String @id @default(cuid())
-  workspaceId String
-  name String
-  slug String
-  icon String @default("database")
-  description String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  fields CollectionField[]
-  records DataRecord[]
-  savedViews SavedView[]
+  id                String               @id @default(cuid())
+  workspaceId       String
+  name              String
+  slug              String
+  icon              String               @default("database")
+  description       String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  workspace         Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fields            CollectionField[]
+  records           DataRecord[]
+  savedViews        SavedView[]
   outgoingRelations CollectionRelation[] @relation("RelationFrom")
   incomingRelations CollectionRelation[] @relation("RelationTo")
+
   @@unique([workspaceId, slug])
 }
 
 model CollectionField {
-  id String @id @default(cuid())
+  id           String     @id @default(cuid())
   collectionId String
-  key String
-  label String
-  type FieldType @default(TEXT)
-  required Boolean @default(false)
-  position Int @default(0)
-  formula String?
-  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  key          String
+  label        String
+  type         FieldType  @default(TEXT)
+  required     Boolean    @default(false)
+  position     Int        @default(0)
+  formula      String?
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
   @@unique([collectionId, key])
 }
 
 model DataRecord {
-  id String @id @default(cuid())
+  id           String     @id @default(cuid())
   collectionId String
-  data Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  data         Json
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
   @@index([collectionId, createdAt])
 }
 
 model SavedView {
-  id String @id @default(cuid())
+  id           String     @id @default(cuid())
   collectionId String
-  name String
-  type String @default("TABLE")
-  config Json @default("{}")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  name         String
+  type         String     @default("TABLE")
+  config       Json       @default("{}")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 }
 
 model CollectionRelation {
-  id String @id @default(cuid())
+  id               String     @id @default(cuid())
   fromCollectionId String
-  toCollectionId String
-  name String
-  fromFieldKey String
-  toFieldKey String
-  createdAt DateTime @default(now())
-  fromCollection Collection @relation("RelationFrom", fields: [fromCollectionId], references: [id], onDelete: Cascade)
-  toCollection Collection @relation("RelationTo", fields: [toCollectionId], references: [id], onDelete: Cascade)
+  toCollectionId   String
+  name             String
+  fromFieldKey     String
+  toFieldKey       String
+  createdAt        DateTime   @default(now())
+  fromCollection   Collection @relation("RelationFrom", fields: [fromCollectionId], references: [id], onDelete: Cascade)
+  toCollection     Collection @relation("RelationTo", fields: [toCollectionId], references: [id], onDelete: Cascade)
 }
 
 model ImportJob {
-  id String @id @default(cuid())
+  id          String       @id @default(cuid())
   workspaceId String
-  filename String
-  sourceType String
-  status ImportStatus @default(PENDING)
-  rowCount Int @default(0)
-  error String?
-  createdAt DateTime @default(now())
+  filename    String
+  sourceType  String
+  status      ImportStatus @default(PENDING)
+  rowCount    Int          @default(0)
+  error       String?
+  createdAt   DateTime     @default(now())
   completedAt DateTime?
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model Dashboard {
-  id String @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
-  name String
-  layout Json @default("[]")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  layout      Json      @default("[]")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model AutomationRule {
-  id String @id @default(cuid())
+  id          String           @id @default(cuid())
   workspaceId String
-  name String
-  status AutomationStatus @default(ACTIVE)
-  trigger Json
-  conditions Json @default("[]")
-  actions Json @default("[]")
-  runCount Int @default(0)
-  lastRunAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  status      AutomationStatus @default(ACTIVE)
+  trigger     Json
+  conditions  Json             @default("[]")
+  actions     Json             @default("[]")
+  runCount    Int              @default(0)
+  lastRunAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model ApiKey {
-  id String @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
-  name String
-  keyHash String @unique
-  prefix String
-  lastUsedAt DateTime?
-  createdAt DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  keyHash     String    @unique
+  prefix      String
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model Webhook {
-  id String @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
-  name String
-  url String
-  secretHash String?
-  events String[]
-  active Boolean @default(true)
-  createdAt DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  url         String
+  secretHash  String?
+  events      String[]
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
-  id String @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
-  userId String?
-  action String
-  entityType String
-  entityId String?
-  metadata Json @default("{}")
-  createdAt DateTime @default(now())
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   @@index([workspaceId, createdAt])
 }
