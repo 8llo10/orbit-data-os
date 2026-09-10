@@ -21,7 +21,7 @@ export type Evidence={
 
 export type AssistantAction={
   id:string;
-  type:'navigate'|'create_dashboard'|'create_automation'|'create_view'|'inspect_collection';
+  type:'navigate'|'create_dashboard'|'create_automation'|'create_view'|'create_relation'|'inspect_collection';
   label:string;
   href?:string;
   requiresConfirmation:boolean;
