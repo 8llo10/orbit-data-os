@@ -1,11 +1,12 @@
 import {randomUUID} from 'crypto';
 import type {AssistantAction,AssistantIntent} from './types';
 
-const wantsCreate=/(سو|سوي|أنشئ|انشئ|اعمل|ابني|جهز|create|make|build|save|أضف|اضف)/i;
+const wantsCreate=/(سو|سوي|أنشئ|انشئ|اعمل|ابني|جهز|create|make|build|save|أضف|اضف|ضيف)/i;
 const wantsDashboard=/(dashboard|داشبورد|لوحة)/i;
 const wantsAutomation=/(automation|أتمت|اتمت|تنبيه|نبه|alert|remind|webhook|trigger)/i;
 const wantsView=/(view|عرض محفوظ|احفظ.*نتيج|save.*view)/i;
 const wantsFormula=/(عمود|حقل|column|field).*(احسب|حساب|معادلة|formula|=|من)/i;
+const wantsRecord=/(أضف|اضف|ضيف|أنشئ|انشئ|create|add).*(سجل|record)/i;
 const wantsCsv=/(csv|سي ?اس ?في|اكسل|excel)/i;
 const wantsJson=/(json|جيسون)/i;
 const wantsExport=/(صدر|صدّر|export|download|نزل|نزّل)/i;
@@ -28,6 +29,19 @@ function formulaAction(message:string,collectionId:string):AssistantAction|null{
  return {id:randomUUID(),type:'create_formula',label:`إنشاء الحقل «${label}» وحسابه`,requiresConfirmation:true,payload:{collectionId,label,formula,request:message}};
 }
 
+function recordAction(message:string,collectionId:string):AssistantAction|null{
+ if(!wantsRecord.test(message))return null;
+ const body=message.includes(':')?message.slice(message.indexOf(':')+1):message.replace(/^.*?(?:سجل|record)\s*/i,'');
+ const values:Record<string,unknown>={};
+ const json=body.trim();
+ if(json.startsWith('{')&&json.endsWith('}')){try{const parsed=JSON.parse(json);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))Object.assign(values,parsed)}catch{}}
+ if(!Object.keys(values).length){for(const part of body.split(/[,،;]\s*/)){const m=part.match(/^\s*([A-Za-z0-9_\-\u0600-\u06ff]+)\s*(?:=|:|يساوي)\s*(.+?)\s*$/);if(!m)continue;values[m[1]]=coerce(m[2]);}}
+ if(!Object.keys(values).length)return null;
+ return {id:randomUUID(),type:'create_record',label:`إضافة سجل جديد (${Object.keys(values).length} حقول)`,requiresConfirmation:true,payload:{collectionId,values,request:message}};
+}
+
+function coerce(raw:string):unknown{const value=raw.trim().replace(/^['"«]|['"»]$/g,'');if(/^null$/i.test(value))return null;if(/^true$/i.test(value))return true;if(/^false$/i.test(value))return false;const n=Number(value.replace(/,/g,''));return Number.isFinite(n)&&value!==''?n:value;}
+
 export function exportActions(message:string,collectionId?:string):AssistantAction[]{
  if(!collectionId||!wantsExport.test(message))return [];
  const actions:AssistantAction[]=[];
@@ -38,7 +52,7 @@ export function exportActions(message:string,collectionId?:string):AssistantActi
 
 export function requestedMutationActions(input:{intent:AssistantIntent;message:string;collectionId?:string}){
  const {intent,message,collectionId}=input;const explicit=wantsCreate.test(message);const steps:AssistantAction[]=[];
- if(collectionId){const formula=formulaAction(message,collectionId);if(formula)steps.push(formula);}
+ if(collectionId){const record=recordAction(message,collectionId);if(record)steps.push(record);const formula=formulaAction(message,collectionId);if(formula)steps.push(formula);}
  if((explicit&&wantsDashboard.test(message))||intent==='DASHBOARD')steps.push(dashboardAction(message,collectionId));
  if((explicit&&wantsAutomation.test(message))||intent==='AUTOMATION')steps.push(automationAction(message,collectionId));
  if(collectionId&&explicit&&wantsView.test(message))steps.push(viewAction(message,collectionId));
