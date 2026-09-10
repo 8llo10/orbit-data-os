@@ -2,10 +2,11 @@ import {randomUUID} from 'crypto';
 import {analyzeQuestion} from './analytics';
 import {analyzeAcrossRelations} from './relational-analytics';
 import {largestCollections,relationEvidence,workspaceEvidence} from './query-engine';
-import {askProvider} from './provider';
+import {askProvider,planWithProvider} from './provider';
 import {buildGroundTruth,providerAnswerIsGrounded} from './grounding';
 import {mutationActions,navigateAction} from './actions';
 import {planAssistantRequest} from './planner';
+import {executeStructuredQuery,validateStructuredPlan} from './structured-query';
 import type {AssistantResult,AssistantRunInput,Evidence,SourceRef} from './types';
 
 export async function orchestrateAssistant(input:AssistantRunInput):Promise<AssistantResult>{
@@ -35,11 +36,14 @@ export async function orchestrateAssistant(input:AssistantRunInput):Promise<Assi
     answer=`عندك ${s.relationCount} علاقات معرفة رسميًا. العلاقات المحتملة اللي تظهر هنا مجرد اقتراحات مبنية على تشابه المفاتيح، وما أعتبرها صحيحة إلا بعد إثباتها أو تأكيدك.`;
   }else{
     const relational=await analyzeAcrossRelations(effectiveMessage,s);
-    const analysis=relational||await analyzeQuestion(effectiveMessage,s);
-    answer=analysis.answer;
-    evidence=analysis.evidence;
-    sources=analysis.sources;
-    collectionId=analysis.collectionId;
+    if(relational){
+      answer=relational.answer;evidence=relational.evidence;sources=relational.sources;collectionId=relational.collectionId;
+    }else{
+      const modelPlan=await planWithProvider({message:input.message,snapshot:s,history});
+      const validated=modelPlan?.query?validateStructuredPlan(modelPlan.query,s):null;
+      const analysis=validated?await executeStructuredQuery(validated,s):await analyzeQuestion(effectiveMessage,s);
+      answer=analysis.answer;evidence=analysis.evidence;sources=analysis.sources;collectionId=analysis.collectionId;
+    }
   }
 
   const actions=[];
