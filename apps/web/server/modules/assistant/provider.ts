@@ -26,7 +26,8 @@ export async function planWithProvider(input:{message:string;snapshot:WorkspaceS
     'For multi-file joins, leave query=null; another deterministic relational engine handles saved relationships.',
     'Valid metric ops: count,sum,avg,min,max,countDistinct.',
     'Valid filter ops: eq,neq,contains,gt,gte,lt,lte,isEmpty,notEmpty.',
-    'Shape: {"intent":"ANALYSIS","needsData":true,"query":{"collection":"exact collection name","filters":[],"groupBy":"exact field key or omitted","metric":{"op":"count|sum|avg|min|max|countDistinct","field":"exact field key when needed"},"order":"desc","limit":10},"rationale":"short"}',
+    'Use metric as the primary sort/answer metric. If the user asks for additional measures in the same grouping, put up to 4 extra measures in metrics.',
+    'Shape: {"intent":"ANALYSIS","needsData":true,"query":{"collection":"exact collection name","filters":[],"groupBy":"exact field key or omitted","metric":{"op":"sum","field":"exact field key","label":"optional human label"},"metrics":[{"op":"count","label":"optional"}],"order":"desc","limit":10},"rationale":"short"}',
     `WORKSPACE_SCHEMA=${JSON.stringify(schema)}`,
     `RECENT_HISTORY=${JSON.stringify(input.history.slice(-8))}`
   ].join('\n');
