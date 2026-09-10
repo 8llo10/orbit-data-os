@@ -1,0 +1,3 @@
+.graphBoard{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.graphNodeUnified{min-height:112px;padding:14px}.graphNodeUnified span{color:var(--brand);font-size:8px;font-weight:850}.graphNodeUnified h3{margin:7px 0 5px;font-size:14px}.graphNodeUnified p{margin:0;color:var(--muted);font-size:8px}.relationList{display:grid;gap:7px}.relationItem{padding:11px;border:1px solid var(--line);border-radius:11px;background:var(--bg-elevated)}.relationItem b{font-size:9px}.relationItem span,.relationItem small{display:block;margin-top:3px;color:var(--muted);font-size:8px}
+@media(max-width:860px){.graphBoard{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.graphBoard{grid-template-columns:1fr}}
